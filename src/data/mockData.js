@@ -11,7 +11,8 @@ export const sidebarItems = [
   { label: 'Jobs', page: 'marketplace' },
   { label: 'Contracts', page: 'contracts' },
   { label: 'Payments', page: 'escrow' },
-  { label: 'Disputes', page: 'contracts' },
+  { label: 'Disputes', page: 'disputes' },
+  { label: 'Settings', page: 'settings' },
 ];
 
 export const stats = [
@@ -153,6 +154,8 @@ export const contracts = [
         amount: '$800',
         status: 'Approved',
         action: null,
+        reviewAction: 'View Product',
+        reviewNote: 'Approved deliverables remain available for review.',
       },
       {
         title: { en: 'High-Fidelity Mockups', vi: 'Mockup chi tiết' },
@@ -160,6 +163,8 @@ export const contracts = [
         amount: '$1,600',
         status: 'Completed',
         action: 'Approve',
+        reviewAction: 'Review Product',
+        reviewNote: 'Ready for product review and payout approval.',
       },
       {
         title: { en: 'Prototype & Animations', vi: 'Prototype và animation' },
@@ -167,6 +172,8 @@ export const contracts = [
         amount: '$1,200',
         status: 'In Progress',
         action: 'Submit Work',
+        reviewAction: 'View Draft',
+        reviewNote: 'Latest working build is visible before final submission.',
       },
       {
         title: { en: 'Handoff & Documentation', vi: 'Bàn giao và tài liệu' },
@@ -174,6 +181,8 @@ export const contracts = [
         amount: '$600',
         status: 'Pending',
         action: null,
+        reviewAction: null,
+        reviewNote: 'Assets will appear here once this milestone begins.',
       },
     ],
   },
@@ -197,6 +206,8 @@ export const contracts = [
         amount: '$500',
         status: 'Approved',
         action: null,
+        reviewAction: 'View Product',
+        reviewNote: 'Discovery notes and approved workshop output are available.',
       },
       {
         title: { en: 'Logo Concepts', vi: 'Ý tưởng logo' },
@@ -204,6 +215,8 @@ export const contracts = [
         amount: '$900',
         status: 'Approved',
         action: null,
+        reviewAction: 'View Product',
+        reviewNote: 'Approved logo explorations are archived for reference.',
       },
       {
         title: { en: 'Final Brand Kit', vi: 'Bộ nhận diện cuối cùng' },
@@ -211,6 +224,8 @@ export const contracts = [
         amount: '$800',
         status: 'Completed',
         action: null,
+        reviewAction: 'Review Product',
+        reviewNote: 'Final brand package is ready for final review.',
       },
     ],
   },
@@ -225,3 +240,42 @@ export const escrowSummary = {
     { label: 'Scheduled release window', date: 'Mar 20, 2026', state: 'Pending' },
   ],
 };
+
+export const disputes = [
+  {
+    id: 1,
+    title: { en: 'Prototype delivery dispute', vi: 'Tranh chap ban giao prototype' },
+    contract: { en: 'Mobile App UI Design', vi: 'Thiet ke UI ung dung di dong' },
+    client: 'Acme Corp',
+    amount: '$1,200',
+    status: 'Under Review',
+    openedAt: 'Apr 7, 2026',
+    summary: {
+      en: 'Client requested additional revisions before approving the prototype milestone payout.',
+      vi: 'Khach hang yeu cau chinh sua them truoc khi phe duyet thanh toan milestone prototype.',
+    },
+    timeline: [
+      { label: 'Dispute opened', date: 'Apr 7, 2026', note: 'Client flagged delivery scope mismatch.' },
+      { label: 'Evidence submitted', date: 'Apr 8, 2026', note: 'Freelancer uploaded annotated prototype links and approval notes.' },
+      { label: 'Platform review', date: 'Apr 9, 2026', note: 'Moderator is reviewing milestone scope and communication history.' },
+    ],
+  },
+  {
+    id: 2,
+    title: { en: 'Final brand kit revision request', vi: 'Tranh chap yeu cau chinh sua brand kit' },
+    contract: { en: 'Brand Identity Package', vi: 'Goi nhan dien thuong hieu' },
+    client: 'StartupXYZ',
+    amount: '$800',
+    status: 'Resolved',
+    openedAt: 'Mar 3, 2026',
+    summary: {
+      en: 'Final files were updated and the remaining payout was released after moderator confirmation.',
+      vi: 'Bo file cuoi cung da duoc cap nhat va khoan thanh toan con lai da duoc giai phong sau khi moderator xac nhan.',
+    },
+    timeline: [
+      { label: 'Dispute opened', date: 'Mar 3, 2026', note: 'Client requested source file adjustments.' },
+      { label: 'Revision delivered', date: 'Mar 4, 2026', note: 'Freelancer submitted corrected exports and editable assets.' },
+      { label: 'Resolved', date: 'Mar 5, 2026', note: 'Client confirmed deliverables and escrow was released.' },
+    ],
+  },
+];

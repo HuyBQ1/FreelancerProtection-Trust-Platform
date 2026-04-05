@@ -41,13 +41,13 @@ function Navbar({ onNavigate, copy, language, onLanguageChange }) {
           </button>
         </div>
         <button
-          onClick={() => onNavigate('dashboard')}
+          onClick={() => onNavigate('login')}
           className="rounded-2xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
         >
           {copy.login}
         </button>
         <button
-          onClick={() => onNavigate('dashboard')}
+          onClick={() => onNavigate('register')}
           className="inline-flex items-center gap-2 rounded-2xl bg-ink px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800"
         >
           {copy.register}

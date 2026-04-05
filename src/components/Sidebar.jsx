@@ -4,6 +4,7 @@ import {
   ClipboardList,
   LayoutDashboard,
   Scale,
+  Settings,
 } from 'lucide-react';
 
 const iconMap = {
@@ -12,6 +13,7 @@ const iconMap = {
   Contracts: ClipboardList,
   Payments: CircleDollarSign,
   Disputes: Scale,
+  Settings,
 };
 
 function Sidebar({ items, activePage, onNavigate, labels }) {
