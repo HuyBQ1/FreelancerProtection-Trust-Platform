@@ -40,8 +40,13 @@ function Landing() {
   const navigate = useNavigate();
 
   const handleNavigate = (target) => {
-    if (target === 'login' || target === 'register') {
+    if (target === 'login') {
       navigate('/login');
+      return;
+    }
+
+    if (target === 'register') {
+      navigate('/register');
       return;
     }
 
@@ -79,7 +84,7 @@ function Landing() {
               </div>
               <div className="flex flex-wrap gap-3">
                 <button
-                  onClick={() => navigate('/login')}
+                  onClick={() => navigate('/register')}
                   className="inline-flex items-center gap-2 rounded-2xl bg-ink px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
                 >
                   Get Started
@@ -152,10 +157,10 @@ function Landing() {
                 Clients can add jobs, shortlist freelancers, open contracts, review submitted products, and release escrow milestone payments from one dashboard.
               </p>
               <button
-                onClick={() => navigate('/login')}
+                onClick={() => navigate('/register')}
                 className="mt-6 inline-flex items-center gap-2 rounded-2xl bg-ink px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
               >
-                Login as Client
+                Register as Client
                 <ArrowRight className="h-4 w-4" />
               </button>
             </SectionCard>

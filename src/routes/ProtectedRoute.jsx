@@ -14,7 +14,11 @@ function ProtectedRoute({ allowedRole }) {
   }
 
   if (allowedRole && user.role !== allowedRole) {
-    const redirectPath = user.role === 'client' ? '/client-dashboard' : '/freelancer-dashboard';
+    const redirectPath = user.role === 'client'
+      ? '/client-dashboard'
+      : user.role === 'admin'
+        ? '/admin-dashboard'
+        : '/freelancer-dashboard';
     return <Navigate to={redirectPath} replace />;
   }
 

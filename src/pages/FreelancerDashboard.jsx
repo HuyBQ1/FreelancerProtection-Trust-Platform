@@ -7,18 +7,21 @@ import StatCard from '../components/StatCard';
 import SectionCard from '../components/SectionCard';
 import JobCard from '../components/JobCard';
 import StatusBadge from '../components/StatusBadge';
-import { activities, contracts, disputes, escrowSummary, jobs, sidebarItems, stats } from '../data/mockData';
+import ChatPanel from '../components/ChatPanel';
+import SettingsPanel from '../components/SettingsPanel';
+import { activities, chatThreads, contracts, disputes, escrowSummary, jobs, sidebarItems, stats } from '../data/mockData';
 
-const pageTabs = ['dashboard', 'marketplace', 'contracts', 'escrow', 'disputes', 'settings'];
+const pageTabs = ['dashboard', 'marketplace', 'contracts', 'chat', 'escrow', 'disputes'];
 const filters = ['All', 'Design', 'Development', 'Security', 'Legal'];
 
 const labels = {
   Dashboard: 'Dashboard',
   Jobs: 'Jobs',
   Contracts: 'Contracts',
+  Chat: 'Chat',
+  'Bank Account': 'Bank Account',
   Payments: 'Payments',
   Disputes: 'Disputes',
-  Settings: 'Settings',
   workspace: 'Workspace',
   trustCenter: 'Trust Center',
   workspaceDesc: 'Manage jobs, contracts, payments, and disputes in one place.',
@@ -30,6 +33,8 @@ const titles = {
   dashboard: 'Dashboard',
   marketplace: 'Marketplace',
   contracts: 'Contracts',
+  chat: 'Chat',
+  bank: 'Bank Account',
   escrow: 'Escrow',
   disputes: 'Disputes',
   settings: 'Settings',
@@ -37,8 +42,9 @@ const titles = {
 
 function FreelancerDashboard() {
   const navigate = useNavigate();
-  const user = JSON.parse(localStorage.getItem('fptp_user') || '{}');
+  const [user, setUser] = useState(JSON.parse(localStorage.getItem('fptp_user') || '{}'));
   const [activePage, setActivePage] = useState('dashboard');
+  const [settingsSection, setSettingsSection] = useState('profile');
   const [query, setQuery] = useState('');
   const [selectedFilter, setSelectedFilter] = useState('All');
   const [selectedContractId, setSelectedContractId] = useState(contracts[0]?.id ?? 1);
@@ -57,6 +63,19 @@ function FreelancerDashboard() {
     navigate('/login', { replace: true });
   };
 
+  const handleLanguageChange = (language) => {
+    const nextUser = {
+      ...user,
+      settings: {
+        ...user?.settings,
+        language,
+      },
+    };
+
+    setUser(nextUser);
+    localStorage.setItem('fptp_user', JSON.stringify(nextUser));
+  };
+
   const dashboardLayout = (content) => (
     <div className="min-h-screen bg-slate-100/80">
       <div className="mx-auto flex w-full max-w-[1680px] gap-6 px-4 py-4 sm:px-6 xl:px-8">
@@ -65,9 +84,16 @@ function FreelancerDashboard() {
           <Topbar
             title={titles[activePage]}
             subtitle="Freelancer Protection & Trust Platform"
-            onNavigate={logout}
-            language="en"
-            onLanguageChange={() => {}}
+            onLogout={logout}
+            onOpenSettings={() => {
+              setSettingsSection('profile');
+              setActivePage('settings');
+            }}
+            onOpenBankSettings={() => {
+              setActivePage('bank');
+            }}
+            language={user?.settings?.language || 'en'}
+            onLanguageChange={handleLanguageChange}
             copy={{ role: 'freelancer', logout: 'Logout' }}
             user={user}
           />
@@ -220,6 +246,22 @@ function FreelancerDashboard() {
     );
   }
 
+  if (activePage === 'chat') {
+    return dashboardLayout(
+      <ChatPanel
+        userRole="freelancer"
+        userName={user?.fullName || user?.email || 'Freelancer'}
+        threads={chatThreads}
+      />,
+    );
+  }
+
+  if (activePage === 'bank') {
+    return dashboardLayout(
+      <SettingsPanel user={user} onUserChange={setUser} initialSection="bank" mode="bank" />,
+    );
+  }
+
   if (activePage === 'disputes') {
     return dashboardLayout(
       <div className="space-y-6">
@@ -253,11 +295,7 @@ function FreelancerDashboard() {
 
   if (activePage === 'settings') {
     return dashboardLayout(
-      <SectionCard className="p-6">
-        <p className="muted">Settings</p>
-        <h2 className="mt-1 text-2xl font-bold text-ink">Account settings</h2>
-        <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-500">Your full old workspace layout is back. We can reconnect the full editable settings panel next if you want.</p>
-      </SectionCard>,
+      <SettingsPanel user={user} onUserChange={setUser} initialSection={settingsSection} />,
     );
   }
 

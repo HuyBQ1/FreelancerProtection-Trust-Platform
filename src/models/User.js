@@ -93,6 +93,28 @@ const userSchema = new mongoose.Schema(
           default: '',
         },
       },
+      bankAccount: {
+        bankName: {
+          type: String,
+          trim: true,
+          default: '',
+        },
+        accountName: {
+          type: String,
+          trim: true,
+          default: '',
+        },
+        accountNumber: {
+          type: String,
+          trim: true,
+          default: '',
+        },
+        swiftCode: {
+          type: String,
+          trim: true,
+          default: '',
+        },
+      },
     },
   },
   {

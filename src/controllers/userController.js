@@ -96,7 +96,7 @@ export async function updateAvatar(req, res) {
 }
 
 export async function updateUserSettings(req, res) {
-  const { roleSettings, notifications, language } = req.body;
+  const { roleSettings, notifications, language, bankAccount } = req.body;
   const updates = {};
 
   if (typeof language === 'string' && ['en', 'vi'].includes(language)) {
@@ -137,6 +137,21 @@ export async function updateUserSettings(req, res) {
       updates['settings.freelancerProfile.skills'] = roleSettings.skills
         .map((skill) => `${skill}`.trim())
         .filter(Boolean);
+    }
+  }
+
+  if (bankAccount && typeof bankAccount === 'object') {
+    if (typeof bankAccount.bankName === 'string') {
+      updates['settings.bankAccount.bankName'] = bankAccount.bankName.trim();
+    }
+    if (typeof bankAccount.accountName === 'string') {
+      updates['settings.bankAccount.accountName'] = bankAccount.accountName.trim();
+    }
+    if (typeof bankAccount.accountNumber === 'string') {
+      updates['settings.bankAccount.accountNumber'] = bankAccount.accountNumber.trim();
+    }
+    if (typeof bankAccount.swiftCode === 'string') {
+      updates['settings.bankAccount.swiftCode'] = bankAccount.swiftCode.trim();
     }
   }
 

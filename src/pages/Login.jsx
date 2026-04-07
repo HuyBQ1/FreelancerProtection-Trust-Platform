@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { ArrowLeft, Building2, BriefcaseBusiness, LockKeyhole, Mail } from 'lucide-react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { ArrowLeft, Building2, BriefcaseBusiness, LockKeyhole, Mail, ShieldCheck } from 'lucide-react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 
 const API_URL = 'http://localhost:5000/api/auth/login';
 const TOKEN_KEY = 'fptp_token';
@@ -23,6 +23,15 @@ const mockUsers = {
       fullName: 'Ariana Lee',
       email: 'freelancer@example.com',
       role: 'freelancer',
+    },
+  },
+  'admin@example.com': {
+    token: 'mock-admin-token',
+    user: {
+      id: 'mock-admin',
+      fullName: 'Platform Admin',
+      email: 'admin@example.com',
+      role: 'admin',
     },
   },
 };
@@ -50,7 +59,7 @@ async function loginRequest(email, password) {
     }
 
     if (error instanceof TypeError) {
-      throw new Error('Backend is not available. Use client@example.com or freelancer@example.com with any 6+ character password for mock login.');
+      throw new Error('Backend is not available. Use client@example.com, freelancer@example.com, or admin@example.com with any 6+ character password for mock login.');
     }
 
     throw error;
@@ -68,6 +77,11 @@ function Login() {
   const redirectByRole = (role) => {
     if (role === 'client') {
       navigate('/client-dashboard', { replace: true });
+      return;
+    }
+
+    if (role === 'admin') {
+      navigate('/admin-dashboard', { replace: true });
       return;
     }
 
@@ -92,7 +106,11 @@ function Login() {
 
       const from = location.state?.from?.pathname;
 
-      if (from && ((data.user.role === 'client' && from === '/client-dashboard') || (data.user.role === 'freelancer' && from === '/freelancer-dashboard'))) {
+      if (from && (
+        (data.user.role === 'client' && from === '/client-dashboard') ||
+        (data.user.role === 'freelancer' && from === '/freelancer-dashboard') ||
+        (data.user.role === 'admin' && from === '/admin-dashboard')
+      )) {
         navigate(from, { replace: true });
         return;
       }
@@ -113,11 +131,11 @@ function Login() {
             Freelancer Protection & Trust Platform
           </span>
           <div className="mt-auto space-y-6">
-            <h1 className="text-4xl font-bold tracking-tight">Role-based access for clients and freelancers</h1>
+            <h1 className="text-4xl font-bold tracking-tight">Role-based access for clients, freelancers, and admins</h1>
             <p className="max-w-lg text-sm leading-7 text-white/70">
-              After login, clients go to the client dashboard and freelancers go to the freelancer dashboard automatically.
+              After login, each account is redirected automatically to the correct workspace for its role.
             </p>
-            <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid gap-4 sm:grid-cols-3">
               <div className="rounded-3xl border border-white/10 bg-white/10 p-5">
                 <Building2 className="h-6 w-6 text-emerald-300" />
                 <p className="mt-4 text-lg font-semibold">Client access</p>
@@ -127,6 +145,11 @@ function Login() {
                 <BriefcaseBusiness className="h-6 w-6 text-sky-300" />
                 <p className="mt-4 text-lg font-semibold">Freelancer access</p>
                 <p className="mt-2 text-sm text-white/70">Track work, milestones, balance, and recent activity.</p>
+              </div>
+              <div className="rounded-3xl border border-white/10 bg-white/10 p-5">
+                <ShieldCheck className="h-6 w-6 text-amber-300" />
+                <p className="mt-4 text-lg font-semibold">Admin access</p>
+                <p className="mt-2 text-sm text-white/70">Oversee disputes, payouts, users, and protected platform volume.</p>
               </div>
             </div>
           </div>
@@ -190,8 +213,16 @@ function Login() {
               <p className="font-semibold text-slate-900">Mock accounts</p>
               <p className="mt-2">Client: `client@example.com`</p>
               <p>Freelancer: `freelancer@example.com`</p>
+              <p>Admin: `admin@example.com`</p>
               <p className="mt-2">Use any password with at least 6 characters if the backend is not running.</p>
             </div>
+
+            <p className="mt-6 text-sm text-slate-500">
+              Need a new account?{' '}
+              <Link to="/register" className="font-semibold text-ink underline-offset-4 hover:underline">
+                Register as Freelancer or Client
+              </Link>
+            </p>
           </div>
         </div>
       </div>

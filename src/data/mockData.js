@@ -10,9 +10,39 @@ export const sidebarItems = [
   { label: 'Dashboard', page: 'dashboard' },
   { label: 'Jobs', page: 'marketplace' },
   { label: 'Contracts', page: 'contracts' },
+  { label: 'Chat', page: 'chat' },
   { label: 'Payments', page: 'escrow' },
   { label: 'Disputes', page: 'disputes' },
-  { label: 'Settings', page: 'settings' },
+];
+
+export const chatThreads = [
+  {
+    id: 1,
+    participant: 'Acme Corp',
+    participantRole: 'Client',
+    contract: 'Mobile App UI Design',
+    unread: 2,
+    lastMessage: 'Please share the latest prototype link before approval.',
+    lastTime: '10:24 AM',
+    messages: [
+      { id: '1-1', senderRole: 'client', senderName: 'Acme Corp', text: 'Please share the latest prototype link before approval.', time: '10:24 AM' },
+      { id: '1-2', senderRole: 'freelancer', senderName: 'Ariana Lee', text: 'Sure, I uploaded the newest animation pass and interaction notes.', time: '10:31 AM' },
+      { id: '1-3', senderRole: 'client', senderName: 'Acme Corp', text: 'Great. I will review the product this afternoon and update the milestone.', time: '10:36 AM' },
+    ],
+  },
+  {
+    id: 2,
+    participant: 'StartupXYZ',
+    participantRole: 'Client',
+    contract: 'Brand Identity Package',
+    unread: 0,
+    lastMessage: 'The final brand kit looks good. We will release the remaining payment.',
+    lastTime: 'Yesterday',
+    messages: [
+      { id: '2-1', senderRole: 'freelancer', senderName: 'Ariana Lee', text: 'I have attached the final logo package and typography guide.', time: 'Yesterday' },
+      { id: '2-2', senderRole: 'client', senderName: 'StartupXYZ', text: 'The final brand kit looks good. We will release the remaining payment.', time: 'Yesterday' },
+    ],
+  },
 ];
 
 export const stats = [
