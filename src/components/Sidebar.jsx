@@ -1,15 +1,23 @@
 import {
   BriefcaseBusiness,
+  CreditCard,
+  MessageSquareMore,
   CircleDollarSign,
   ClipboardList,
+  FileText,
   LayoutDashboard,
   Scale,
+  Users,
 } from 'lucide-react';
 
 const iconMap = {
   Dashboard: LayoutDashboard,
+  Users,
+  Posts: FileText,
   Jobs: BriefcaseBusiness,
   Contracts: ClipboardList,
+  Chat: MessageSquareMore,
+  'Bank Account': CreditCard,
   Payments: CircleDollarSign,
   Disputes: Scale,
 };

@@ -10,8 +10,39 @@ export const sidebarItems = [
   { label: 'Dashboard', page: 'dashboard' },
   { label: 'Jobs', page: 'marketplace' },
   { label: 'Contracts', page: 'contracts' },
+  { label: 'Chat', page: 'chat' },
   { label: 'Payments', page: 'escrow' },
-  { label: 'Disputes', page: 'contracts' },
+  { label: 'Disputes', page: 'disputes' },
+];
+
+export const chatThreads = [
+  {
+    id: 1,
+    participant: 'Acme Corp',
+    participantRole: 'Client',
+    contract: 'Mobile App UI Design',
+    unread: 2,
+    lastMessage: 'Please share the latest prototype link before approval.',
+    lastTime: '10:24 AM',
+    messages: [
+      { id: '1-1', senderRole: 'client', senderName: 'Acme Corp', text: 'Please share the latest prototype link before approval.', time: '10:24 AM' },
+      { id: '1-2', senderRole: 'freelancer', senderName: 'Ariana Lee', text: 'Sure, I uploaded the newest animation pass and interaction notes.', time: '10:31 AM' },
+      { id: '1-3', senderRole: 'client', senderName: 'Acme Corp', text: 'Great. I will review the product this afternoon and update the milestone.', time: '10:36 AM' },
+    ],
+  },
+  {
+    id: 2,
+    participant: 'StartupXYZ',
+    participantRole: 'Client',
+    contract: 'Brand Identity Package',
+    unread: 0,
+    lastMessage: 'The final brand kit looks good. We will release the remaining payment.',
+    lastTime: 'Yesterday',
+    messages: [
+      { id: '2-1', senderRole: 'freelancer', senderName: 'Ariana Lee', text: 'I have attached the final logo package and typography guide.', time: 'Yesterday' },
+      { id: '2-2', senderRole: 'client', senderName: 'StartupXYZ', text: 'The final brand kit looks good. We will release the remaining payment.', time: 'Yesterday' },
+    ],
+  },
 ];
 
 export const stats = [
@@ -153,6 +184,9 @@ export const contracts = [
         amount: '$800',
         status: 'Approved',
         action: null,
+        reviewAction: 'View Product',
+        reviewNote: 'Approved deliverables remain available for review.',
+        previewUrl: 'https://www.figma.com/proto/mobile-wireframes-review',
       },
       {
         title: { en: 'High-Fidelity Mockups', vi: 'Mockup chi tiết' },
@@ -160,6 +194,9 @@ export const contracts = [
         amount: '$1,600',
         status: 'Completed',
         action: 'Approve',
+        reviewAction: 'Review Product',
+        reviewNote: 'Ready for product review and payout approval.',
+        previewUrl: 'https://www.figma.com/proto/high-fidelity-mockups-review',
       },
       {
         title: { en: 'Prototype & Animations', vi: 'Prototype và animation' },
@@ -167,6 +204,9 @@ export const contracts = [
         amount: '$1,200',
         status: 'In Progress',
         action: 'Submit Work',
+        reviewAction: 'View Draft',
+        reviewNote: 'Latest working build is visible before final submission.',
+        draftUrl: 'https://www.figma.com/proto/prototype-animations-draft',
       },
       {
         title: { en: 'Handoff & Documentation', vi: 'Bàn giao và tài liệu' },
@@ -174,6 +214,8 @@ export const contracts = [
         amount: '$600',
         status: 'Pending',
         action: null,
+        reviewAction: null,
+        reviewNote: 'Assets will appear here once this milestone begins.',
       },
     ],
   },
@@ -197,6 +239,9 @@ export const contracts = [
         amount: '$500',
         status: 'Approved',
         action: null,
+        reviewAction: 'View Product',
+        reviewNote: 'Discovery notes and approved workshop output are available.',
+        previewUrl: 'https://www.notion.so/brand-discovery-review',
       },
       {
         title: { en: 'Logo Concepts', vi: 'Ý tưởng logo' },
@@ -204,6 +249,9 @@ export const contracts = [
         amount: '$900',
         status: 'Approved',
         action: null,
+        reviewAction: 'View Product',
+        reviewNote: 'Approved logo explorations are archived for reference.',
+        previewUrl: 'https://dribbble.com/shots/logo-concepts-review',
       },
       {
         title: { en: 'Final Brand Kit', vi: 'Bộ nhận diện cuối cùng' },
@@ -211,6 +259,9 @@ export const contracts = [
         amount: '$800',
         status: 'Completed',
         action: null,
+        reviewAction: 'Review Product',
+        reviewNote: 'Final brand package is ready for final review.',
+        previewUrl: 'https://www.behance.net/gallery/final-brand-kit-review',
       },
     ],
   },
@@ -225,3 +276,42 @@ export const escrowSummary = {
     { label: 'Scheduled release window', date: 'Mar 20, 2026', state: 'Pending' },
   ],
 };
+
+export const disputes = [
+  {
+    id: 1,
+    title: { en: 'Prototype delivery dispute', vi: 'Tranh chap ban giao prototype' },
+    contract: { en: 'Mobile App UI Design', vi: 'Thiet ke UI ung dung di dong' },
+    client: 'Acme Corp',
+    amount: '$1,200',
+    status: 'Under Review',
+    openedAt: 'Apr 7, 2026',
+    summary: {
+      en: 'Client requested additional revisions before approving the prototype milestone payout.',
+      vi: 'Khach hang yeu cau chinh sua them truoc khi phe duyet thanh toan milestone prototype.',
+    },
+    timeline: [
+      { label: 'Dispute opened', date: 'Apr 7, 2026', note: 'Client flagged delivery scope mismatch.' },
+      { label: 'Evidence submitted', date: 'Apr 8, 2026', note: 'Freelancer uploaded annotated prototype links and approval notes.' },
+      { label: 'Platform review', date: 'Apr 9, 2026', note: 'Moderator is reviewing milestone scope and communication history.' },
+    ],
+  },
+  {
+    id: 2,
+    title: { en: 'Final brand kit revision request', vi: 'Tranh chap yeu cau chinh sua brand kit' },
+    contract: { en: 'Brand Identity Package', vi: 'Goi nhan dien thuong hieu' },
+    client: 'StartupXYZ',
+    amount: '$800',
+    status: 'Resolved',
+    openedAt: 'Mar 3, 2026',
+    summary: {
+      en: 'Final files were updated and the remaining payout was released after moderator confirmation.',
+      vi: 'Bo file cuoi cung da duoc cap nhat va khoan thanh toan con lai da duoc giai phong sau khi moderator xac nhan.',
+    },
+    timeline: [
+      { label: 'Dispute opened', date: 'Mar 3, 2026', note: 'Client requested source file adjustments.' },
+      { label: 'Revision delivered', date: 'Mar 4, 2026', note: 'Freelancer submitted corrected exports and editable assets.' },
+      { label: 'Resolved', date: 'Mar 5, 2026', note: 'Client confirmed deliverables and escrow was released.' },
+    ],
+  },
+];
