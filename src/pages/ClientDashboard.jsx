@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { BriefcaseBusiness, CircleDollarSign, ClipboardCheck, Eye, MessageSquareMore, Search, Shield, Users } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import Sidebar from '../components/Sidebar';
 import Topbar from '../components/Topbar';
 import StatCard from '../components/StatCard';
@@ -8,7 +8,7 @@ import SectionCard from '../components/SectionCard';
 import JobCard from '../components/JobCard';
 import ChatPanel from '../components/ChatPanel';
 import SettingsPanel from '../components/SettingsPanel';
-import { chatThreads, contracts, disputes, sidebarItems } from '../data/mockData';
+import { chatThreads, contracts, disputes, freelancerProfiles, sidebarItems } from '../data/mockData';
 
 const pageTabs = ['dashboard', 'marketplace', 'contracts', 'chat', 'escrow', 'disputes'];
 const labels = {
@@ -45,15 +45,12 @@ const clientActivities = [
   { title: 'Milestone awaiting approval', description: 'Prototype & Animations was submitted and is waiting for your review.', time: '2 hours ago', icon: ClipboardCheck },
   { title: 'Escrow funded successfully', description: 'A new milestone deposit was confirmed for the mobile app design contract.', time: 'Yesterday', icon: Shield },
 ];
-const clientCards = [
-  { title: 'Senior React freelancer shortlist', budget: '$4,500', client: '12 matched freelancers', category: 'Development', description: 'Review top candidates for your trust portal build and compare availability, rates, and ratings.' },
-  { title: 'UI/UX designer recommendations', budget: '$3,000', client: '8 available profiles', category: 'Design', description: 'Hand-picked designers with strong escrow workflow and product interface experience.' },
-];
 
 function ClientDashboard() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [user, setUser] = useState(JSON.parse(localStorage.getItem('fptp_user') || '{}'));
-  const [activePage, setActivePage] = useState('dashboard');
+  const [activePage, setActivePage] = useState(location.state?.initialPage || 'dashboard');
   const [settingsSection, setSettingsSection] = useState('profile');
   const [selectedContractId, setSelectedContractId] = useState(contracts[0]?.id ?? 1);
   const [query, setQuery] = useState('');
@@ -118,14 +115,17 @@ function ClientDashboard() {
   );
 
   if (activePage === 'marketplace') {
-    const list = clientCards.filter((item) => item.title.toLowerCase().includes(query.toLowerCase()) || item.client.toLowerCase().includes(query.toLowerCase()));
+    const list = freelancerProfiles.filter((item) => {
+      const target = `${item.fullName} ${item.headline} ${item.specialty} ${item.skills.join(' ')}`.toLowerCase();
+      return target.includes(query.toLowerCase());
+    });
     return dashboardLayout(
       <div className="space-y-6">
         <SectionCard className="p-6">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <p className="muted">Talent Marketplace</p>
-              <h2 className="mt-1 text-xl font-bold text-ink">Recommended talent and active hiring briefs</h2>
+              <h2 className="mt-1 text-xl font-bold text-ink">Freelancer profiles ready for client review</h2>
             </div>
             <label className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
               <Search className="h-4 w-4 text-slate-400" />
@@ -134,8 +134,31 @@ function ClientDashboard() {
           </div>
         </SectionCard>
         <div className="grid gap-5 xl:grid-cols-2">
-          {list.map((item) => <JobCard key={item.title} job={item} labels={{ budget: 'Budget / rate', client: 'Pipeline' }} />)}
+          {list.map((item) => (
+            <JobCard
+              key={item.id}
+              job={{
+                title: item.fullName,
+                budget: item.hourlyRate,
+                client: `${item.rating} rating · ${item.completedJobs} jobs`,
+                category: item.specialty,
+                description: item.headline,
+              }}
+              labels={{ budget: 'Rate', client: 'Track record' }}
+              actionLabel="View Profile"
+              onAction={() => navigate(`/freelancer-profile/${item.id}`)}
+            />
+          ))}
         </div>
+        {list.length === 0 ? (
+          <SectionCard className="p-8">
+            <p className="muted">No matches found</p>
+            <h3 className="mt-2 text-xl font-bold text-ink">Try a different search keyword</h3>
+            <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-600">
+              We could not find a freelancer matching that skill or specialty in the current shortlist. Try searching by role, tool, or expertise area.
+            </p>
+          </SectionCard>
+        ) : null}
       </div>,
     );
   }
@@ -304,6 +327,55 @@ function ClientDashboard() {
         <div><p className="muted">Client activity</p><h2 className="mt-1 text-xl font-bold text-ink">Hiring and approval overview</h2></div>
         <div className="mt-6 space-y-4">
           {clientActivities.map((activity) => <div key={activity.title} className="flex items-start gap-4 rounded-2xl border border-slate-200 bg-slate-50 p-4"><div className="mt-1 rounded-2xl bg-white p-3 shadow-sm"><activity.icon className="h-5 w-5 text-pine" /></div><div className="flex-1"><div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between"><h3 className="font-semibold text-slate-900">{activity.title}</h3><span className="text-sm text-slate-400">{activity.time}</span></div><p className="mt-1 text-sm leading-6 text-slate-600">{activity.description}</p></div></div>)}
+        </div>
+      </SectionCard>
+      <SectionCard className="p-6">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <p className="muted">Featured freelancers</p>
+            <h2 className="mt-1 text-xl font-bold text-ink">Open a freelancer profile from here</h2>
+          </div>
+          <button
+            type="button"
+            onClick={() => setActivePage('marketplace')}
+            className="rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:text-slate-900"
+          >
+            Open Talent Marketplace
+          </button>
+        </div>
+        <div className="mt-6 grid gap-5 xl:grid-cols-2">
+          {freelancerProfiles.slice(0, 2).map((profile) => (
+            <div key={profile.id} className="rounded-[28px] border border-slate-200 bg-slate-50 p-5">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <span className="chip">{profile.specialty}</span>
+                  <h3 className="mt-4 text-xl font-semibold text-ink">{profile.fullName}</h3>
+                  <p className="mt-2 text-sm leading-6 text-slate-600">{profile.headline}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => navigate(`/freelancer-profile/${profile.id}`)}
+                  className="rounded-2xl bg-ink px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800"
+                >
+                  View Profile
+                </button>
+              </div>
+              <div className="mt-5 grid gap-3 sm:grid-cols-3">
+                <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Rate</p>
+                  <p className="mt-2 text-lg font-semibold text-ink">{profile.hourlyRate}</p>
+                </div>
+                <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Rating</p>
+                  <p className="mt-2 text-lg font-semibold text-ink">{profile.rating} / 5</p>
+                </div>
+                <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Jobs</p>
+                  <p className="mt-2 text-lg font-semibold text-ink">{profile.completedJobs}</p>
+                </div>
+              </div>
+            </div>
+          ))}
         </div>
       </SectionCard>
     </div>,

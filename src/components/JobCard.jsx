@@ -1,6 +1,6 @@
 import { ArrowUpRight, BriefcaseBusiness, CircleDollarSign } from 'lucide-react';
 
-function JobCard({ job, labels }) {
+function JobCard({ job, labels, actionLabel, onAction }) {
   return (
     <article className="panel p-6 transition hover:-translate-y-1">
       <div className="flex items-start justify-between gap-4">
@@ -9,7 +9,12 @@ function JobCard({ job, labels }) {
           <h3 className="mt-4 text-xl font-semibold text-ink">{job.title}</h3>
           <p className="mt-2 text-sm leading-6 text-slate-600">{job.description}</p>
         </div>
-        <button className="rounded-2xl border border-slate-200 p-3 text-slate-500 transition hover:bg-slate-50 hover:text-slate-900">
+        <button
+          type="button"
+          onClick={onAction}
+          className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 px-3 py-3 text-slate-500 transition hover:bg-slate-50 hover:text-slate-900"
+        >
+          {actionLabel ? <span className="text-sm font-semibold text-slate-700">{actionLabel}</span> : null}
           <ArrowUpRight className="h-5 w-5" />
         </button>
       </div>
