@@ -40,6 +40,14 @@ const userSchema = new mongoose.Schema(
       trim: true,
       default: '',
     },
+    balance: {
+      type: Number,
+      default: 0,
+    },
+    escrowBalance: {
+      type: Number,
+      default: 0,
+    },
     settings: {
       language: {
         type: String,
@@ -88,28 +96,6 @@ const userSchema = new mongoose.Schema(
           default: [],
         },
         portfolioUrl: {
-          type: String,
-          trim: true,
-          default: '',
-        },
-      },
-      bankAccount: {
-        bankName: {
-          type: String,
-          trim: true,
-          default: '',
-        },
-        accountName: {
-          type: String,
-          trim: true,
-          default: '',
-        },
-        accountNumber: {
-          type: String,
-          trim: true,
-          default: '',
-        },
-        swiftCode: {
           type: String,
           trim: true,
           default: '',

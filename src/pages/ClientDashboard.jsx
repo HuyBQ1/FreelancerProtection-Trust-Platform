@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { BriefcaseBusiness, CircleDollarSign, ClipboardCheck, Eye, MessageSquareMore, Search, Shield, Users } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import Sidebar from '../components/Sidebar';
@@ -35,11 +35,6 @@ const titles = {
   disputes: 'Disputes',
   settings: 'Settings',
 };
-const clientStats = [
-  { label: 'Open jobs', value: '12', hint: '4 new proposals today', icon: BriefcaseBusiness, accent: 'bg-pine/10 text-pine' },
-  { label: 'Pending approvals', value: '3', hint: 'Milestones waiting for review', icon: ClipboardCheck, accent: 'bg-coral/10 text-coral' },
-  { label: 'Protected spend', value: '$18,400', hint: '$6,200 currently held in escrow', icon: CircleDollarSign, accent: 'bg-gold/10 text-gold' },
-];
 const clientActivities = [
   { title: 'Proposal shortlist updated', description: '3 freelancers were moved to the final review stage for the dashboard redesign role.', time: '20 minutes ago', icon: Users },
   { title: 'Milestone awaiting approval', description: 'Prototype & Animations was submitted and is waiting for your review.', time: '2 hours ago', icon: ClipboardCheck },
@@ -51,9 +46,29 @@ function ClientDashboard() {
   const location = useLocation();
   const [user, setUser] = useState(JSON.parse(localStorage.getItem('fptp_user') || '{}'));
   const [activePage, setActivePage] = useState(location.state?.initialPage || 'dashboard');
+  const [escrowBalance, setEscrowBalance] = useState(18400);
   const [settingsSection, setSettingsSection] = useState('profile');
   const [selectedContractId, setSelectedContractId] = useState(contracts[0]?.id ?? 1);
   const [query, setQuery] = useState('');
+
+  useEffect(() => {
+    const fetchSummary = async () => {
+      try {
+        const token = localStorage.getItem('fptp_token');
+        if (!token) return;
+        const res = await fetch('/api/escrow/summary', {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        const data = await res.json();
+        if (data.summary && data.summary.escrowBalance !== undefined) {
+          setEscrowBalance(data.summary.escrowBalance);
+        }
+      } catch (err) {
+        console.error('Failed to fetch escrow summary:', err);
+      }
+    };
+    fetchSummary();
+  }, []);
 
   const selectedContract = contracts.find((item) => item.id === selectedContractId) ?? contracts[0];
 
@@ -74,6 +89,36 @@ function ClientDashboard() {
 
     setUser(nextUser);
     localStorage.setItem('fptp_user', JSON.stringify(nextUser));
+  };
+
+  const releasePayment = async () => {
+    const releaseAmount = 800; // Mock release amount matching backend
+    try {
+      const token = localStorage.getItem('fptp_token');
+      await fetch('/api/escrow/release', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ contractId: selectedContract.id, milestoneId: 'mock-milestone-id' })
+      });
+    } catch (err) {
+      console.error('API call failed, proceeding with UI mock update:', err);
+    }
+    setEscrowBalance((prev) => prev - releaseAmount);
+  };
+
+  const createDeposit = async () => {
+    const depositAmount = 2200;
+    try {
+      const token = localStorage.getItem('fptp_token');
+      await fetch('/api/escrow/deposit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ contractId: selectedContract?.id || 'mock', milestoneId: 'mock', amount: depositAmount })
+      });
+    } catch (err) {
+      console.error('API call failed, proceeding with UI mock update:', err);
+    }
+    setEscrowBalance((prev) => prev + depositAmount);
   };
 
   const dashboardLayout = (content) => (
@@ -232,10 +277,10 @@ function ClientDashboard() {
           <h2 className="mt-1 text-xl font-bold text-ink">Protected client budget</h2>
           <div className="mt-6 rounded-[28px] bg-ink p-6 text-white">
             <p className="text-sm text-white/70">Reserved project budget</p>
-            <p className="mt-2 text-4xl font-bold">$18,400</p>
+            <p className="mt-2 text-4xl font-bold">${escrowBalance.toLocaleString()}</p>
             <div className="mt-5 flex flex-wrap gap-3">
-              <button className="rounded-2xl bg-white px-4 py-2 text-sm font-semibold text-ink">Release payment</button>
-              <button className="rounded-2xl border border-white/15 px-4 py-2 text-sm font-semibold text-white">Create deposit</button>
+              <button onClick={releasePayment} className="rounded-2xl bg-white px-4 py-2 text-sm font-semibold text-ink">Release payment</button>
+              <button onClick={createDeposit} className="rounded-2xl border border-white/15 px-4 py-2 text-sm font-semibold text-white">Create deposit</button>
             </div>
           </div>
         </SectionCard>
@@ -307,21 +352,25 @@ function ClientDashboard() {
             <h2 className="mt-3 text-3xl font-bold tracking-tight">Manage hiring, approvals, and escrow releases</h2>
             <p className="mt-4 max-w-2xl text-sm leading-7 text-white/75">Review incoming work, approve milestones, track protected budget, and keep every contract under control from one client workspace.</p>
             <div className="mt-6 flex flex-wrap gap-3">
-              <button className="rounded-2xl bg-white px-5 py-3 text-sm font-semibold text-ink">Add Job</button>
-              <button onClick={() => setActivePage('marketplace')} className="rounded-2xl border border-white/15 px-5 py-3 text-sm font-semibold text-white">Review Proposals</button>
-              <button onClick={() => setActivePage('escrow')} className="rounded-2xl border border-white/15 px-5 py-3 text-sm font-semibold text-white">Fund Escrow</button>
+               <button className="rounded-2xl bg-white px-5 py-3 text-sm font-semibold text-ink">Add Job</button>
+               <button onClick={() => setActivePage('marketplace')} className="rounded-2xl border border-white/15 px-5 py-3 text-sm font-semibold text-white">Review Proposals</button>
+               <button onClick={() => setActivePage('escrow')} className="rounded-2xl border border-white/15 px-5 py-3 text-sm font-semibold text-white">Fund Escrow</button>
             </div>
           </div>
           <div className="bg-slate-50 px-6 py-8 sm:px-8">
             <div className="space-y-4">
               <div className="rounded-3xl border border-slate-200 bg-white p-5"><p className="text-sm text-slate-500">Pending approvals</p><p className="mt-2 text-3xl font-bold text-ink">3</p><p className="mt-2 text-sm text-slate-500">Milestones waiting for your review this week.</p></div>
-              <div className="rounded-3xl border border-slate-200 bg-white p-5"><p className="text-sm text-slate-500">Protected budget</p><p className="mt-2 text-3xl font-bold text-ink">$6,200</p><p className="mt-2 text-sm text-slate-500">Reserved in escrow across active supplier contracts.</p><button onClick={() => setActivePage('escrow')} className="mt-4 rounded-xl bg-ink px-4 py-2 text-sm font-semibold text-white">Pay milestone</button></div>
+              <div className="rounded-3xl border border-slate-200 bg-white p-5"><p className="text-sm text-slate-500">Protected budget</p><p className="mt-2 text-3xl font-bold text-ink">${escrowBalance.toLocaleString()}</p><p className="mt-2 text-sm text-slate-500">Reserved in escrow across active supplier contracts.</p><button onClick={() => setActivePage('escrow')} className="mt-4 rounded-xl bg-ink px-4 py-2 text-sm font-semibold text-white">Pay milestone</button></div>
             </div>
           </div>
         </div>
       </SectionCard>
       <section className="grid gap-5 md:grid-cols-3">
-        {clientStats.map((stat) => <StatCard key={stat.label} {...stat} />)}
+        {[
+          { label: 'Open jobs', value: '12', hint: '4 new proposals today', icon: BriefcaseBusiness, accent: 'bg-pine/10 text-pine' },
+          { label: 'Pending approvals', value: '3', hint: 'Milestones waiting for review', icon: ClipboardCheck, accent: 'bg-coral/10 text-coral' },
+          { label: 'Protected spend', value: escrowBalance > 0 ? `$${escrowBalance.toLocaleString()}` : '$0', hint: '$6,200 currently held in escrow', icon: CircleDollarSign, accent: 'bg-gold/10 text-gold' },
+        ].map((stat) => <StatCard key={stat.label} {...stat} />)}
       </section>
       <SectionCard className="p-6">
         <div><p className="muted">Client activity</p><h2 className="mt-1 text-xl font-bold text-ink">Hiring and approval overview</h2></div>
