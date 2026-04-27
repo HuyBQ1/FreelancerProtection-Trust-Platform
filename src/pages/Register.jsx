@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { ArrowLeft, ArrowRight, BriefcaseBusiness, Building2, LockKeyhole, Mail, UserRound } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 
-const API_URL = 'http://localhost:5000/api/auth/register';
+const API_URL = `${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/auth/register`;
 const TOKEN_KEY = 'fptp_token';
 const USER_KEY = 'fptp_user';
 

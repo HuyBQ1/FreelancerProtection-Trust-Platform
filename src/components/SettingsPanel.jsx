@@ -4,9 +4,10 @@ import SectionCard from './SectionCard';
 
 const TOKEN_KEY = 'fptp_token';
 const USER_KEY = 'fptp_user';
-const PROFILE_URL = 'http://localhost:5000/api/users/profile';
-const SETTINGS_URL = 'http://localhost:5000/api/users/settings';
-const AVATAR_URL = 'http://localhost:5000/api/users/avatar';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const PROFILE_URL = `${API_BASE_URL}/users/profile`;
+const SETTINGS_URL = `${API_BASE_URL}/users/settings`;
+const AVATAR_URL = `${API_BASE_URL}/users/avatar`;
 
 function buildDefaultForm(user) {
   return {
@@ -62,6 +63,38 @@ function SettingsPanel({ user, onUserChange, initialSection = 'profile', mode = 
   useEffect(() => {
     setActiveSection(initialSection);
   }, [initialSection]);
+
+  useEffect(() => {
+    const token = localStorage.getItem(TOKEN_KEY);
+    if (!token) return;
+
+    let isMounted = true;
+
+    const syncProfile = async () => {
+      try {
+        const response = await fetch(PROFILE_URL, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || !data.user || !isMounted) return;
+
+        persistUser(data.user);
+        setForm(buildDefaultForm(data.user));
+        setAvatarPreview(data.user.avatar || '');
+      } catch {
+        // Keep the current local snapshot when the profile sync cannot be reached.
+      }
+    };
+
+    syncProfile();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const roleLabel = useMemo(() => (user?.role === 'client' ? 'Client' : 'Freelancer'), [user?.role]);
   const maskedAccountNumber = form.accountNumber
@@ -135,7 +168,7 @@ function SettingsPanel({ user, onUserChange, initialSection = 'profile', mode = 
 
     const token = localStorage.getItem(TOKEN_KEY);
     if (!token) {
-      saveLocally();
+      saveLocally(mode === 'bank' ? 'Bank account saved locally.' : 'Settings saved locally.');
       setSaving(false);
       return;
     }
@@ -213,9 +246,15 @@ function SettingsPanel({ user, onUserChange, initialSection = 'profile', mode = 
       }
 
       persistUser(settingsData.user);
-      setStatus({ type: 'success', message: 'Settings updated successfully.' });
+      setStatus({
+        type: 'success',
+        message: mode === 'bank' ? 'Successfully.' : 'Settings updated successfully.',
+      });
     } catch (error) {
-      saveLocally(error instanceof Error ? `${error.message} Saved locally instead.` : 'Settings saved locally.');
+      setStatus({
+        type: 'error',
+        message: error instanceof Error ? error.message : 'Could not save your changes to the server.',
+      });
     } finally {
       setSaving(false);
     }
@@ -302,7 +341,11 @@ function SettingsPanel({ user, onUserChange, initialSection = 'profile', mode = 
                   </label>
                 </div>
 
-                {status.message ? <p className="mt-6 rounded-2xl bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{status.message}</p> : null}
+                {status.message ? (
+                  <p className={`mt-6 rounded-2xl px-4 py-3 text-sm ${status.type === 'error' ? 'bg-rose-50 text-rose-700' : 'bg-emerald-50 text-emerald-700'}`}>
+                    {status.message}
+                  </p>
+                ) : null}
 
                 <button type="submit" disabled={saving} className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-ink px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60">
                   <Save className="h-4 w-4" />
@@ -452,7 +495,11 @@ function SettingsPanel({ user, onUserChange, initialSection = 'profile', mode = 
                 <h3 className="text-xl font-bold text-ink">Update account</h3>
               </div>
             </div>
-            {status.message ? <p className="mt-5 rounded-2xl bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{status.message}</p> : null}
+            {status.message ? (
+              <p className={`mt-5 rounded-2xl px-4 py-3 text-sm ${status.type === 'error' ? 'bg-rose-50 text-rose-700' : 'bg-emerald-50 text-emerald-700'}`}>
+                {status.message}
+              </p>
+            ) : null}
             <button type="submit" disabled={saving} className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-ink px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60">
               <Save className="h-4 w-4" />
               {saving ? 'Saving...' : 'Save changes'}

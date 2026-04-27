@@ -1,6 +1,6 @@
 import jwt from 'jsonwebtoken';
 import env from '../config/env.js';
-import User from '../models/User.js';
+import { findAccountByIdAndRole } from '../services/accountService.js';
 
 export async function protect(req, res, next) {
   try {
@@ -14,15 +14,16 @@ export async function protect(req, res, next) {
 
     const token = authHeader.split(' ')[1];
     const decoded = jwt.verify(token, env.jwtSecret);
-    const user = await User.findById(decoded.userId).select('-password');
+    const { account, model } = await findAccountByIdAndRole(decoded.userId, decoded.role);
 
-    if (!user) {
+    if (!account) {
       const error = new Error('User not found');
       error.statusCode = 401;
       throw error;
     }
 
-    req.user = user;
+    req.user = account;
+    req.accountModel = model;
     next();
   } catch (error) {
     error.statusCode = error.statusCode || 401;

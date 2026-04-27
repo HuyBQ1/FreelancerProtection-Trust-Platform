@@ -9,7 +9,7 @@ import JobCard from '../components/JobCard';
 import StatusBadge from '../components/StatusBadge';
 import ChatPanel from '../components/ChatPanel';
 import SettingsPanel from '../components/SettingsPanel';
-import { activities, chatThreads, contracts, disputes, escrowSummary, jobs, sidebarItems, stats } from '../data/mockData';
+import { activities, contracts, disputes, escrowSummary, jobs, sidebarItems, stats } from '../data/mockData';
 
 const pageTabs = ['dashboard', 'marketplace', 'contracts', 'chat', 'escrow', 'disputes'];
 const filters = ['All', 'Design', 'Development', 'Security', 'Legal'];
@@ -249,9 +249,8 @@ function FreelancerDashboard() {
   if (activePage === 'chat') {
     return dashboardLayout(
       <ChatPanel
-        userRole="freelancer"
+        currentUser={user}
         userName={user?.fullName || user?.email || 'Freelancer'}
-        threads={chatThreads}
       />,
     );
   }

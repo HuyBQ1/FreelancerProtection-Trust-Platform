@@ -8,7 +8,7 @@ import SectionCard from '../components/SectionCard';
 import JobCard from '../components/JobCard';
 import ChatPanel from '../components/ChatPanel';
 import SettingsPanel from '../components/SettingsPanel';
-import { chatThreads, contracts, disputes, freelancerProfiles, sidebarItems } from '../data/mockData';
+import { contracts, disputes, freelancerProfiles, sidebarItems } from '../data/mockData';
 
 const pageTabs = ['dashboard', 'marketplace', 'contracts', 'chat', 'escrow', 'disputes'];
 const labels = {
@@ -255,13 +255,8 @@ function ClientDashboard() {
   if (activePage === 'chat') {
     return dashboardLayout(
       <ChatPanel
-        userRole="client"
+        currentUser={user}
         userName={user?.fullName || user?.email || 'Client'}
-        threads={chatThreads.map((thread) => ({
-          ...thread,
-          participantRole: 'Freelancer',
-          participant: thread.messages.find((message) => message.senderRole === 'freelancer')?.senderName || thread.participant,
-        }))}
       />,
     );
   }

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { ArrowLeft, Building2, BriefcaseBusiness, LockKeyhole, Mail, ShieldCheck } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 
-const API_URL = 'http://localhost:5000/api/auth/login';
+const API_URL = `${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/auth/login`;
 const TOKEN_KEY = 'fptp_token';
 const USER_KEY = 'fptp_user';
 

@@ -1,13 +1,18 @@
+import http from 'http';
 import app from './app.js';
 import env from './config/env.js';
 import { connectDatabase } from './config/database.js';
+import { initSocketServer } from './socket.js';
 
 async function startServer() {
   try {
     console.log(`Connecting to MongoDB: ${env.mongodbUri}`);
     await connectDatabase();
 
-    app.listen(env.port, () => {
+    const server = http.createServer(app);
+    initSocketServer(server);
+
+    server.listen(env.port, () => {
       console.log(`Server running on port ${env.port}`);
     });
   } catch (error) {

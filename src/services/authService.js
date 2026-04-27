@@ -1,16 +1,12 @@
-import User from '../models/User.js';
+import { ensureEmailIsAvailable, findAccountByEmail, getPrimaryModelByRole } from './accountService.js';
 import { generateToken } from './tokenService.js';
 
 export async function registerUser({ email, password, role, fullName, companyName, headline }) {
-  const existingUser = await User.findOne({ email: email.toLowerCase() });
+  await ensureEmailIsAvailable(email);
 
-  if (existingUser) {
-    const error = new Error('User already exists');
-    error.statusCode = 409;
-    throw error;
-  }
+  const AccountModel = getPrimaryModelByRole(role);
 
-  const user = await User.create({
+  const user = await AccountModel.create({
     email,
     password,
     role,
@@ -29,12 +25,12 @@ export async function registerUser({ email, password, role, fullName, companyNam
 
   return {
     user,
-    token: generateToken(user._id),
+    token: generateToken(user._id, user.role),
   };
 }
 
 export async function loginUser({ email, password }) {
-  const user = await User.findOne({ email: email.toLowerCase() });
+  const user = await findAccountByEmail(email);
 
   if (!user) {
     const error = new Error('Invalid email or password');
@@ -52,6 +48,6 @@ export async function loginUser({ email, password }) {
 
   return {
     user,
-    token: generateToken(user._id),
+    token: generateToken(user._id, user.role),
   };
 }
