@@ -1,5 +1,4 @@
-<<<<<<< HEAD
-import { ensureEmailIsAvailable, findAccountByEmail, getPrimaryModelByRole } from './accountService.js';
+﻿import { ensureEmailIsAvailable, findAccountByEmail, getPrimaryModelByRole } from './accountService.js';
 import { generateToken } from './tokenService.js';
 
 export async function registerUser({ email, password, role, fullName, companyName, headline }) {
@@ -8,21 +7,6 @@ export async function registerUser({ email, password, role, fullName, companyNam
   const AccountModel = getPrimaryModelByRole(role);
 
   const user = await AccountModel.create({
-=======
-import User from '../models/User.js';
-import { generateToken } from './tokenService.js';
-
-export async function registerUser({ email, password, role, fullName, companyName, headline }) {
-  const existingUser = await User.findOne({ email: email.toLowerCase() });
-
-  if (existingUser) {
-    const error = new Error('User already exists');
-    error.statusCode = 409;
-    throw error;
-  }
-
-  const user = await User.create({
->>>>>>> origin/review
     email,
     password,
     role,
@@ -41,20 +25,12 @@ export async function registerUser({ email, password, role, fullName, companyNam
 
   return {
     user,
-<<<<<<< HEAD
     token: generateToken(user._id, user.role),
-=======
-    token: generateToken(user._id),
->>>>>>> origin/review
   };
 }
 
 export async function loginUser({ email, password }) {
-<<<<<<< HEAD
   const user = await findAccountByEmail(email);
-=======
-  const user = await User.findOne({ email: email.toLowerCase() });
->>>>>>> origin/review
 
   if (!user) {
     const error = new Error('Invalid email or password');
@@ -72,10 +48,6 @@ export async function loginUser({ email, password }) {
 
   return {
     user,
-<<<<<<< HEAD
     token: generateToken(user._id, user.role),
-=======
-    token: generateToken(user._id),
->>>>>>> origin/review
   };
 }

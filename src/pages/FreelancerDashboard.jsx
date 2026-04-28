@@ -1,10 +1,6 @@
-<<<<<<< HEAD
 import React, { useState, useEffect } from 'react';
-=======
-import { useState } from 'react';
->>>>>>> origin/review
 import { ChevronRight, CircleCheckBig, Clock3, Eye, HandCoins, Hourglass, Search, Shield, Upload, UserRound } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import Sidebar from '../components/Sidebar';
 import Topbar from '../components/Topbar';
 import StatCard from '../components/StatCard';
@@ -13,14 +9,23 @@ import JobCard from '../components/JobCard';
 import StatusBadge from '../components/StatusBadge';
 import ChatPanel from '../components/ChatPanel';
 import SettingsPanel from '../components/SettingsPanel';
-<<<<<<< HEAD
 import { activities, contracts, disputes, escrowSummary, jobs, sidebarItems, stats } from '../data/mockData';
-=======
-import { activities, chatThreads, contracts, disputes, escrowSummary, jobs, sidebarItems, stats } from '../data/mockData';
->>>>>>> origin/review
+import { createContractFromAcceptedJob } from '../utils/contractTransforms';
 
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const LOCAL_CLIENT_JOBS_KEY = 'fptp_client_jobs';
 const pageTabs = ['dashboard', 'marketplace', 'contracts', 'chat', 'escrow', 'disputes'];
 const filters = ['All', 'Design', 'Development', 'Security', 'Legal'];
+
+function readLocalJobs() {
+  try {
+    const raw = localStorage.getItem(LOCAL_CLIENT_JOBS_KEY);
+    const parsed = JSON.parse(raw || '[]');
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
 
 const labels = {
   Dashboard: 'Dashboard',
@@ -50,15 +55,28 @@ const titles = {
 
 function FreelancerDashboard() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const [pendingInitialContractId, setPendingInitialContractId] = useState(location.state?.initialContractId || '');
   const [user, setUser] = useState(JSON.parse(localStorage.getItem('fptp_user') || '{}'));
-  const [activePage, setActivePage] = useState('dashboard');
+  const [activePage, setActivePage] = useState(location.state?.initialPage || 'dashboard');
   const [settingsSection, setSettingsSection] = useState('profile');
   const [query, setQuery] = useState('');
   const [selectedFilter, setSelectedFilter] = useState('All');
   const [selectedContractId, setSelectedContractId] = useState(contracts[0]?.id ?? 1);
   const [selectedDisputeId, setSelectedDisputeId] = useState(disputes[0]?.id ?? 1);
-<<<<<<< HEAD
   const [escrowBalance, setEscrowBalance] = useState(escrowSummary.amount);
+  const [jobList, setJobList] = useState([]);
+  const [acceptedJobs, setAcceptedJobs] = useState([]);
+
+  useEffect(() => {
+    if (location.state?.initialPage) {
+      setActivePage(location.state.initialPage);
+    }
+
+    if (location.state?.initialContractId) {
+      setPendingInitialContractId(location.state.initialContractId);
+    }
+  }, [location.state]);
 
   // Fetch Escrow Summary from Backend
   React.useEffect(() => {
@@ -66,7 +84,7 @@ function FreelancerDashboard() {
       try {
         const token = localStorage.getItem('fptp_token');
         if (!token) return;
-        const res = await fetch('/api/escrow/summary', {
+        const res = await fetch(`${API_BASE_URL}/escrow/summary`, {
           headers: { Authorization: `Bearer ${token}` }
         });
         const data = await res.json();
@@ -80,15 +98,93 @@ function FreelancerDashboard() {
     };
     fetchSummary();
   }, []);
-=======
->>>>>>> origin/review
 
-  const filteredJobs = jobs.filter((job) => (
-    (job.title.en.toLowerCase().includes(query.toLowerCase()) || job.client.toLowerCase().includes(query.toLowerCase())) &&
-    (selectedFilter === 'All' || job.category.en === selectedFilter)
+  useEffect(() => {
+    const fetchJobs = async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/jobs`);
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          setJobList(readLocalJobs());
+          return;
+        }
+
+        if (Array.isArray(data.jobs) && data.jobs.length > 0) {
+          setJobList(data.jobs);
+        } else {
+          setJobList(readLocalJobs());
+        }
+      } catch (err) {
+        console.error('Failed to fetch public jobs:', err);
+        setJobList(readLocalJobs());
+      }
+    };
+
+    fetchJobs();
+  }, []);
+
+  useEffect(() => {
+    const fetchAssignedJobs = async () => {
+      try {
+        const token = localStorage.getItem('fptp_token');
+        if (!token) return;
+
+        const response = await fetch(`${API_BASE_URL}/jobs/assigned`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+        const data = await response.json().catch(() => ({}));
+
+        if (!response.ok) {
+          return;
+        }
+
+        setAcceptedJobs(Array.isArray(data.jobs) ? data.jobs : []);
+      } catch (error) {
+        console.error('Failed to fetch accepted jobs:', error);
+      }
+    };
+
+    fetchAssignedJobs();
+  }, [location.state?.initialContractId]);
+
+  const marketplaceJobs = jobList.length > 0
+    ? jobList
+    : jobs.map((job, index) => ({
+      id: `mock-job-${index + 1}`,
+      title: job.title.en,
+      budget: job.budget,
+      client: job.client,
+      category: job.category.en,
+      description: job.description.en,
+      experienceLevel: '',
+      timeline: '',
+      locationType: '',
+      engagementType: '',
+      scopeSummary: '',
+      skills: [],
+    }));
+
+  const filteredJobs = marketplaceJobs.filter((job) => (
+    (job.title.toLowerCase().includes(query.toLowerCase()) || job.client.toLowerCase().includes(query.toLowerCase())) &&
+    (selectedFilter === 'All' || job.category === selectedFilter)
   ));
-  const selectedContract = contracts.find((item) => item.id === selectedContractId) ?? contracts[0];
+  const contractList = [...acceptedJobs.map(createContractFromAcceptedJob), ...contracts];
+  const selectedContract = contractList.find((item) => item.id === selectedContractId) ?? contractList[0];
   const selectedDispute = disputes.find((item) => item.id === selectedDisputeId) ?? disputes[0];
+
+  useEffect(() => {
+    if (pendingInitialContractId) {
+      setSelectedContractId(pendingInitialContractId);
+      setPendingInitialContractId('');
+      return;
+    }
+
+    if (contractList.length > 0 && !contractList.some((item) => item.id === selectedContractId)) {
+      setSelectedContractId(contractList[0].id);
+    }
+  }, [contractList, pendingInitialContractId, selectedContractId]);
 
   const logout = () => {
     localStorage.removeItem('fptp_token');
@@ -107,6 +203,12 @@ function FreelancerDashboard() {
 
     setUser(nextUser);
     localStorage.setItem('fptp_user', JSON.stringify(nextUser));
+  };
+
+  const openContractBrief = (contract) => {
+    if (contract?.source === 'job-acceptance' && contract?.sourceJobId) {
+      navigate(`/freelancer-jobs/${contract.sourceJobId}`);
+    }
   };
 
   const dashboardLayout = (content) => (
@@ -172,8 +274,25 @@ function FreelancerDashboard() {
           </div>
         </SectionCard>
         <div className="grid gap-5 xl:grid-cols-2">
-          {filteredJobs.map((job) => <JobCard key={job.title.en} job={{ ...job, title: job.title.en, category: job.category.en, description: job.description.en }} labels={{ budget: 'Budget', client: 'Client' }} />)}
+          {filteredJobs.map((job) => (
+              <JobCard
+                key={job.id || job.title}
+                job={job}
+                labels={{ budget: 'Budget', client: 'Client' }}
+                actionLabel="View Job"
+                onAction={() => navigate(`/freelancer-jobs/${job.id || job.title}`)}
+              />
+            ))}
         </div>
+        {filteredJobs.length === 0 ? (
+          <SectionCard className="p-6">
+            <p className="muted">No jobs found</p>
+            <h3 className="mt-2 text-xl font-bold text-ink">Try a different search or filter</h3>
+            <p className="mt-3 text-sm leading-7 text-slate-500">
+              We could not find a matching job in the current list. Clear the filters or try another keyword.
+            </p>
+          </SectionCard>
+        ) : null}
       </div>,
     );
   }
@@ -191,11 +310,11 @@ function FreelancerDashboard() {
       <div className="space-y-6">
         <div>
           <h2 className="text-3xl font-bold tracking-tight text-ink">Contracts</h2>
-          <p className="mt-2 text-sm text-slate-500">{contracts.length} contracts total</p>
+          <p className="mt-2 text-sm text-slate-500">{contractList.length} contracts total</p>
         </div>
         <div className="grid gap-6 2xl:grid-cols-[380px_minmax(0,1fr)]">
           <div className="space-y-4">
-            {contracts.map((contract) => (
+            {contractList.map((contract) => (
               <button key={contract.id} onClick={() => setSelectedContractId(contract.id)} className={`w-full rounded-[26px] border bg-white p-5 text-left shadow-sm transition ${contract.id === selectedContract.id ? 'border-indigo-500 ring-2 ring-indigo-100' : 'border-slate-200 hover:border-slate-300'}`}>
                 <div className="flex items-start justify-between gap-3">
                   <div>
@@ -246,7 +365,7 @@ function FreelancerDashboard() {
                         </div>
                       </div>
                       <div className="flex items-center gap-3 self-end md:self-auto">
-                        {milestone.reviewAction ? <button className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-indigo-200 hover:text-indigo-600"><Eye className="h-4 w-4" />{milestone.reviewAction}</button> : null}
+                        {milestone.reviewAction ? <button onClick={() => openContractBrief(selectedContract)} className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-indigo-200 hover:text-indigo-600"><Eye className="h-4 w-4" />{milestone.reviewAction}</button> : null}
                         {milestone.action ? <button className={`inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition ${isApprove ? 'border border-emerald-500 text-emerald-600 hover:bg-emerald-50' : 'bg-indigo-600 text-white hover:bg-indigo-700'}`}>{isApprove ? <Eye className="h-4 w-4" /> : <Upload className="h-4 w-4" />}{milestone.action}</button> : null}
                         <ChevronRight className="h-5 w-5 text-slate-400" />
                       </div>
@@ -266,11 +385,7 @@ function FreelancerDashboard() {
       <div className="grid gap-6 lg:grid-cols-[1.05fr_0.95fr]">
         <SectionCard className="p-6">
           <div className="flex items-center justify-between"><div><p className="muted">Escrow</p><h2 className="mt-1 text-xl font-bold text-ink">Protected balance</h2></div><Shield className="h-5 w-5 text-pine" /></div>
-<<<<<<< HEAD
           <div className="mt-6 rounded-[28px] bg-ink p-6 text-white"><p className="text-sm text-white/70">Deposited amount</p><p className="mt-2 text-4xl font-bold">{escrowBalance}</p><div className="mt-5 flex items-center justify-between"><span className="text-sm text-white/70">Status</span><StatusBadge status={escrowSummary.status} dark label={escrowSummary.status} /></div></div>
-=======
-          <div className="mt-6 rounded-[28px] bg-ink p-6 text-white"><p className="text-sm text-white/70">Deposited amount</p><p className="mt-2 text-4xl font-bold">{escrowSummary.amount}</p><div className="mt-5 flex items-center justify-between"><span className="text-sm text-white/70">Status</span><StatusBadge status={escrowSummary.status} dark label={escrowSummary.status} /></div></div>
->>>>>>> origin/review
         </SectionCard>
         <SectionCard className="p-6">
           <p className="muted">Escrow timeline</p>
@@ -286,14 +401,9 @@ function FreelancerDashboard() {
   if (activePage === 'chat') {
     return dashboardLayout(
       <ChatPanel
-<<<<<<< HEAD
         currentUser={user}
         userName={user?.fullName || user?.email || 'Freelancer'}
-=======
-        userRole="freelancer"
-        userName={user?.fullName || user?.email || 'Freelancer'}
-        threads={chatThreads}
->>>>>>> origin/review
+        initialThreadId={location.state?.initialThreadId || ''}
       />,
     );
   }
@@ -315,7 +425,7 @@ function FreelancerDashboard() {
           <div className="space-y-5">
             <SectionCard className="p-6">
               <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                <div><h3 className="text-2xl font-bold text-ink">{selectedDispute.title.en}</h3><p className="mt-2 text-slate-500">{selectedDispute.contract.en} · {selectedDispute.client}</p></div>
+                <div><h3 className="text-2xl font-bold text-ink">{selectedDispute.title.en}</h3><p className="mt-2 text-slate-500">{selectedDispute.contract.en} Â· {selectedDispute.client}</p></div>
                 <span className={`rounded-full px-3 py-1 text-sm font-semibold ${selectedDispute.status === 'Resolved' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>{selectedDispute.status}</span>
               </div>
               <div className="mt-8 grid gap-6 md:grid-cols-3">
@@ -344,11 +454,7 @@ function FreelancerDashboard() {
   return dashboardLayout(
     <div className="space-y-6">
       <section className="grid gap-5 md:grid-cols-3">
-<<<<<<< HEAD
         {stats.map((stat) => <StatCard key={stat.label.en} {...stat} label={stat.label.en} hint={stat.hint.en} value={stat.label.en === 'Balance' && escrowBalance ? escrowBalance : stat.value} />)}
-=======
-        {stats.map((stat) => <StatCard key={stat.label.en} {...stat} label={stat.label.en} hint={stat.hint.en} />)}
->>>>>>> origin/review
       </section>
       <SectionCard className="p-6">
         <div><p className="muted">Recent activities</p><h2 className="mt-1 text-xl font-bold text-ink">Platform overview</h2></div>

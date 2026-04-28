@@ -1,5 +1,5 @@
 import ChatThread from '../models/ChatThread.js';
-import { findAccountByIdAndRole, findFirstAccountByRole } from '../services/accountService.js';
+import { findAccountByEmail, findAccountByIdAndRole, findFirstAccountByRole } from '../services/accountService.js';
 import { emitToUser } from '../socket.js';
 
 function formatMessageTime(date) {
@@ -85,13 +85,18 @@ export async function getThreads(req, res) {
 }
 
 export async function createThread(req, res) {
-  const { counterpartyId, counterpartyRole, contract } = req.body || {};
+  const { counterpartyId, counterpartyRole, counterpartyEmail, contract } = req.body || {};
 
   let counterparty = null;
 
   if (counterpartyId && counterpartyRole) {
     const lookup = await findAccountByIdAndRole(counterpartyId, counterpartyRole);
     counterparty = lookup.account;
+  } else if (counterpartyEmail && counterpartyRole) {
+    const lookup = await findAccountByEmail(counterpartyEmail);
+    if (lookup && lookup.role === counterpartyRole) {
+      counterparty = lookup;
+    }
   } else if (req.user.role === 'client') {
     counterparty = await findFirstAccountByRole('freelancer', req.user);
   } else if (req.user.role === 'freelancer') {

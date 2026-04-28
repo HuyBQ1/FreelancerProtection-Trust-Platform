@@ -1,7 +1,7 @@
 import mongoose from 'mongoose';
 import Contract from '../models/Contract.js';
 import Transaction from '../models/Transaction.js';
-import User from '../models/User.js';
+import { findAccountByIdAndRole } from '../services/accountService.js';
 
 // Global mock state to allow UI state to sync without DB
 export const mockState = {
@@ -19,9 +19,14 @@ export const depositToEscrow = async (req, res, next) => {
 
     const { contractId, milestoneId, amount } = req.body;
     const clientId = req.user._id;
+    const depositAmount = Number(amount) || 0;
 
     if (req.user.role !== 'client') {
       return res.status(403).json({ message: 'Only clients can deposit to escrow' });
+    }
+
+    if (depositAmount <= 0) {
+      return res.status(400).json({ message: 'A valid deposit amount is required' });
     }
 
     let contract = null;
@@ -43,8 +48,10 @@ export const depositToEscrow = async (req, res, next) => {
     }
 
     // Simulate charging client's external payment method and storing in virtual escrow
-    req.user.escrowBalance += amount;
-    await req.user.save();
+    req.user.escrowBalance = (req.user.escrowBalance || 0) + depositAmount;
+    await req.accountModel.findByIdAndUpdate(req.user._id, {
+      $set: { escrowBalance: req.user.escrowBalance },
+    });
 
     if (milestone && contract) {
       milestone.isFunded = true;
@@ -54,7 +61,7 @@ export const depositToEscrow = async (req, res, next) => {
 
     const transaction = await Transaction.create({
       type: 'deposit',
-      amount,
+      amount: depositAmount,
       fromUser: clientId,
       contractId: contractId !== 'mock' ? contractId : null,
       milestoneId: milestoneId !== 'mock' ? milestoneId : null,
@@ -109,20 +116,28 @@ export const releaseToFreelancer = async (req, res, next) => {
       amount = 800; // Mock release amount if no real DB hit
     }
 
-    if (req.user.escrowBalance < amount) {
+    const currentEscrowBalance = req.user.escrowBalance || 0;
+
+    if (currentEscrowBalance < amount) {
        return res.status(400).json({ message: 'Insufficient escrow balance' });
     }
 
     // Release funds
-    req.user.escrowBalance -= amount;
-    await req.user.save();
+    req.user.escrowBalance = currentEscrowBalance - amount;
+    await req.accountModel.findByIdAndUpdate(req.user._id, {
+      $set: { escrowBalance: req.user.escrowBalance },
+    });
 
     let toUser = null;
     if (contract) {
-      const freelancer = await User.findById(contract.freelancerId);
-      freelancer.balance += amount;
-      await freelancer.save();
-      toUser = freelancer._id;
+      const { account: freelancer, model: freelancerModel } = await findAccountByIdAndRole(contract.freelancerId, 'freelancer');
+      if (freelancer && freelancerModel) {
+        const nextBalance = (freelancer.balance || 0) + amount;
+        await freelancerModel.findByIdAndUpdate(freelancer._id, {
+          $set: { balance: nextBalance },
+        });
+        toUser = freelancer._id;
+      }
 
       milestone.status = 'Approved';
       await contract.save();
@@ -155,11 +170,11 @@ export const getEscrowSummary = async (req, res, next) => {
     
     let summary = {};
     if (req.user.role === 'client') {
-      summary.escrowBalance = req.user.escrowBalance;
+      summary.escrowBalance = req.user.escrowBalance || 0;
       const transactions = await Transaction.find({ fromUser: userId }).sort({ createdAt: -1 }).limit(10);
       summary.recentTransactions = transactions;
     } else {
-      summary.balance = req.user.balance;
+      summary.balance = req.user.balance || 0;
       const transactions = await Transaction.find({ toUser: userId }).sort({ createdAt: -1 }).limit(10);
       summary.recentTransactions = transactions;
     }

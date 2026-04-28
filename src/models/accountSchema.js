@@ -41,6 +41,16 @@ export function createAccountSchema({ allowedRoles, defaultRole }) {
         trim: true,
         default: '',
       },
+      balance: {
+        type: Number,
+        default: 0,
+        min: 0,
+      },
+      escrowBalance: {
+        type: Number,
+        default: 0,
+        min: 0,
+      },
       settings: {
         language: {
           type: String,

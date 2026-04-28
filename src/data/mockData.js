@@ -1,4 +1,4 @@
-import {
+﻿import {
   BriefcaseBusiness,
   CircleDollarSign,
   ClipboardList,
@@ -47,23 +47,23 @@ export const chatThreads = [
 
 export const stats = [
   {
-    label: { en: 'Total jobs', vi: 'Tổng công việc' },
+    label: { en: 'Total jobs', vi: 'Tá»•ng cÃ´ng viá»‡c' },
     value: '128',
-    hint: { en: '+14% this month', vi: '+14% tháng này' },
+    hint: { en: '+14% this month', vi: '+14% thÃ¡ng nÃ y' },
     icon: BriefcaseBusiness,
     accent: 'bg-pine/10 text-pine',
   },
   {
-    label: { en: 'Active contracts', vi: 'Hợp đồng đang chạy' },
+    label: { en: 'Active contracts', vi: 'Há»£p Ä‘á»“ng Ä‘ang cháº¡y' },
     value: '18',
-    hint: { en: '6 awaiting approval', vi: '6 đang chờ phê duyệt' },
+    hint: { en: '6 awaiting approval', vi: '6 Ä‘ang chá» phÃª duyá»‡t' },
     icon: ClipboardList,
     accent: 'bg-coral/10 text-coral',
   },
   {
-    label: { en: 'Balance', vi: 'Số dư' },
+    label: { en: 'Balance', vi: 'Sá»‘ dÆ°' },
     value: '$24,600',
-    hint: { en: '$8,400 held in escrow', vi: '$8,400 đang được giữ trong escrow' },
+    hint: { en: '$8,400 held in escrow', vi: '$8,400 Ä‘ang Ä‘Æ°á»£c giá»¯ trong escrow' },
     icon: CircleDollarSign,
     accent: 'bg-gold/10 text-gold',
   },
@@ -73,37 +73,37 @@ export const activities = [
   {
     title: {
       en: 'Milestone approved by BrightSide Studio',
-      vi: 'Milestone đã được BrightSide Studio phê duyệt',
+      vi: 'Milestone Ä‘Ã£ Ä‘Æ°á»£c BrightSide Studio phÃª duyá»‡t',
     },
     description: {
       en: 'The client approved your high-fidelity dashboard designs and released $2,400.',
-      vi: 'Khách hàng đã phê duyệt bộ thiết kế dashboard chi tiết và giải ngân $2,400.',
+      vi: 'KhÃ¡ch hÃ ng Ä‘Ã£ phÃª duyá»‡t bá»™ thiáº¿t káº¿ dashboard chi tiáº¿t vÃ  giáº£i ngÃ¢n $2,400.',
     },
-    time: { en: '2 hours ago', vi: '2 giờ trước' },
+    time: { en: '2 hours ago', vi: '2 giá» trÆ°á»›c' },
     icon: ShieldCheck,
   },
   {
     title: {
       en: 'Escrow funded for mobile app audit',
-      vi: 'Escrow đã được nạp cho hợp đồng kiểm tra app mobile',
+      vi: 'Escrow Ä‘Ã£ Ä‘Æ°á»£c náº¡p cho há»£p Ä‘á»“ng kiá»ƒm tra app mobile',
     },
     description: {
       en: 'A new client deposited the first milestone amount to begin security review work.',
-      vi: 'Khách hàng mới đã nộp tiền milestone đầu tiên để bắt đầu quá trình đánh giá bảo mật.',
+      vi: 'KhÃ¡ch hÃ ng má»›i Ä‘Ã£ ná»™p tiá»n milestone Ä‘áº§u tiÃªn Ä‘á»ƒ báº¯t Ä‘áº§u quÃ¡ trÃ¬nh Ä‘Ã¡nh giÃ¡ báº£o máº­t.',
     },
-    time: { en: '5 hours ago', vi: '5 giờ trước' },
+    time: { en: '5 hours ago', vi: '5 giá» trÆ°á»›c' },
     icon: Landmark,
   },
   {
     title: {
       en: 'Contract updated with delivery notes',
-      vi: 'Hợp đồng đã được cập nhật với ghi chú bàn giao',
+      vi: 'Há»£p Ä‘á»“ng Ä‘Ã£ Ä‘Æ°á»£c cáº­p nháº­t vá»›i ghi chÃº bÃ n giao',
     },
     description: {
       en: 'The product copy contract now includes revised scope details and protection terms.',
-      vi: 'Hợp đồng đã bổ sung phạm vi công việc mới và các điều khoản bảo vệ.',
+      vi: 'Há»£p Ä‘á»“ng Ä‘Ã£ bá»• sung pháº¡m vi cÃ´ng viá»‡c má»›i vÃ  cÃ¡c Ä‘iá»u khoáº£n báº£o vá»‡.',
     },
-    time: { en: 'Yesterday', vi: 'Hôm qua' },
+    time: { en: 'Yesterday', vi: 'HÃ´m qua' },
     icon: ClipboardList,
   },
 ];
@@ -112,53 +112,57 @@ export const jobs = [
   {
     title: {
       en: 'Fintech dashboard redesign with escrow milestones',
-      vi: 'Thiết kế lại dashboard fintech theo milestone escrow',
+      vi: 'Thiáº¿t káº¿ láº¡i dashboard fintech theo milestone escrow',
     },
     budget: '$3,500 - $5,000',
     client: 'Northstar Capital',
-    category: { en: 'Design', vi: 'Thiết kế' },
+    category: { en: 'Design', vi: 'Thiáº¿t káº¿' },
     description: {
       en: 'Looking for a senior product designer to modernize a compliance-heavy dashboard experience.',
-      vi: 'Tìm product designer cấp cao để hiện đại hóa dashboard có nhiều yêu cầu tuân thủ.',
+      vi: 'TÃ¬m product designer cáº¥p cao Ä‘á»ƒ hiá»‡n Ä‘áº¡i hÃ³a dashboard cÃ³ nhiá»u yÃªu cáº§u tuÃ¢n thá»§.',
     },
+    assignedFreelancerName: 'Ariana Lee',
+    assignedFreelancerRole: 'freelancer',
   },
   {
     title: {
       en: 'React frontend for trust verification portal',
-      vi: 'Frontend React cho cổng thông tin xác minh uy tín',
+      vi: 'Frontend React cho cá»•ng thÃ´ng tin xÃ¡c minh uy tÃ­n',
     },
     budget: '$4,200',
     client: 'SecureFlow Labs',
-    category: { en: 'Development', vi: 'Phát triển' },
+    category: { en: 'Development', vi: 'PhÃ¡t triá»ƒn' },
     description: {
       en: 'Build a responsive portal for identity checks, contract evidence, and payout controls.',
-      vi: 'Xây dựng cổng thông tin responsive cho xác minh danh tính, bằng chứng hợp đồng và kiểm soát thanh toán.',
+      vi: 'XÃ¢y dá»±ng cá»•ng thÃ´ng tin responsive cho xÃ¡c minh danh tÃ­nh, báº±ng chá»©ng há»£p Ä‘á»“ng vÃ  kiá»ƒm soÃ¡t thanh toÃ¡n.',
     },
+    assignedFreelancerName: 'Marcus Nguyen',
+    assignedFreelancerRole: 'freelancer',
   },
   {
     title: {
       en: 'Platform security audit for freelance marketplace',
-      vi: 'Đánh giá bảo mật nền tảng marketplace freelance',
+      vi: 'ÄÃ¡nh giÃ¡ báº£o máº­t ná»n táº£ng marketplace freelance',
     },
     budget: '$6,000',
     client: 'Helix Networks',
-    category: { en: 'Security', vi: 'Bảo mật' },
+    category: { en: 'Security', vi: 'Báº£o máº­t' },
     description: {
       en: 'Review web app security posture, transaction protection, and file delivery risk.',
-      vi: 'Đánh giá bảo mật ứng dụng web, cơ chế bảo vệ giao dịch và rủi ro khi bàn giao tệp.',
+      vi: 'ÄÃ¡nh giÃ¡ báº£o máº­t á»©ng dá»¥ng web, cÆ¡ cháº¿ báº£o vá»‡ giao dá»‹ch vÃ  rá»§i ro khi bÃ n giao tá»‡p.',
     },
   },
   {
     title: {
       en: 'Dispute policy and contract language refresh',
-      vi: 'Cập nhật chính sách tranh chấp và ngôn ngữ hợp đồng',
+      vi: 'Cáº­p nháº­t chÃ­nh sÃ¡ch tranh cháº¥p vÃ  ngÃ´n ngá»¯ há»£p Ä‘á»“ng',
     },
     budget: '$1,800',
     client: 'Bridge Legal',
-    category: { en: 'Legal', vi: 'Pháp lý' },
+    category: { en: 'Legal', vi: 'PhÃ¡p lÃ½' },
     description: {
       en: 'Refine contract templates and approval workflows for dispute-prevention clarity.',
-      vi: 'Tối ưu mẫu hợp đồng và quy trình phê duyệt để giảm tranh chấp.',
+      vi: 'Tá»‘i Æ°u máº«u há»£p Ä‘á»“ng vÃ  quy trÃ¬nh phÃª duyá»‡t Ä‘á»ƒ giáº£m tranh cháº¥p.',
     },
   },
 ];
@@ -167,7 +171,7 @@ export const contracts = [
   {
     id: 1,
     initials: 'AC',
-    title: { en: 'Mobile App UI Design', vi: 'Thiết kế UI ứng dụng di động' },
+    title: { en: 'Mobile App UI Design', vi: 'Thiáº¿t káº¿ UI á»©ng dá»¥ng di Ä‘á»™ng' },
     client: 'Acme Corp',
     budget: '$4,200',
     earned: '$800',
@@ -179,46 +183,34 @@ export const contracts = [
     status: 'Active',
     milestones: [
       {
-        title: { en: 'Wireframes & User Flows', vi: 'Wireframe và luồng người dùng' },
+        title: { en: 'Wireframes & User Flows', vi: 'Wireframe vÃ  luá»“ng ngÆ°á»i dÃ¹ng' },
         dueDate: 'Mar 10',
         amount: '$800',
         status: 'Approved',
         action: null,
         reviewAction: 'View Product',
         reviewNote: 'Approved deliverables remain available for review.',
-<<<<<<< HEAD
-=======
-        previewUrl: 'https://www.figma.com/proto/mobile-wireframes-review',
->>>>>>> origin/review
       },
       {
-        title: { en: 'High-Fidelity Mockups', vi: 'Mockup chi tiết' },
+        title: { en: 'High-Fidelity Mockups', vi: 'Mockup chi tiáº¿t' },
         dueDate: 'Mar 25',
         amount: '$1,600',
         status: 'Completed',
         action: 'Approve',
         reviewAction: 'Review Product',
         reviewNote: 'Ready for product review and payout approval.',
-<<<<<<< HEAD
-=======
-        previewUrl: 'https://www.figma.com/proto/high-fidelity-mockups-review',
->>>>>>> origin/review
       },
       {
-        title: { en: 'Prototype & Animations', vi: 'Prototype và animation' },
+        title: { en: 'Prototype & Animations', vi: 'Prototype vÃ  animation' },
         dueDate: 'Apr 5',
         amount: '$1,200',
         status: 'In Progress',
         action: 'Submit Work',
         reviewAction: 'View Draft',
         reviewNote: 'Latest working build is visible before final submission.',
-<<<<<<< HEAD
-=======
-        draftUrl: 'https://www.figma.com/proto/prototype-animations-draft',
->>>>>>> origin/review
       },
       {
-        title: { en: 'Handoff & Documentation', vi: 'Bàn giao và tài liệu' },
+        title: { en: 'Handoff & Documentation', vi: 'BÃ n giao vÃ  tÃ i liá»‡u' },
         dueDate: 'Apr 15',
         amount: '$600',
         status: 'Pending',
@@ -231,7 +223,7 @@ export const contracts = [
   {
     id: 2,
     initials: 'SX',
-    title: { en: 'Brand Identity Package', vi: 'Gói nhận diện thương hiệu' },
+    title: { en: 'Brand Identity Package', vi: 'GÃ³i nháº­n diá»‡n thÆ°Æ¡ng hiá»‡u' },
     client: 'StartupXYZ',
     budget: '$2,200',
     earned: '$2,200',
@@ -243,43 +235,31 @@ export const contracts = [
     status: 'Completed',
     milestones: [
       {
-        title: { en: 'Brand Discovery', vi: 'Khám phá thương hiệu' },
+        title: { en: 'Brand Discovery', vi: 'KhÃ¡m phÃ¡ thÆ°Æ¡ng hiá»‡u' },
         dueDate: 'Feb 8',
         amount: '$500',
         status: 'Approved',
         action: null,
         reviewAction: 'View Product',
         reviewNote: 'Discovery notes and approved workshop output are available.',
-<<<<<<< HEAD
-=======
-        previewUrl: 'https://www.notion.so/brand-discovery-review',
->>>>>>> origin/review
       },
       {
-        title: { en: 'Logo Concepts', vi: 'Ý tưởng logo' },
+        title: { en: 'Logo Concepts', vi: 'Ã tÆ°á»Ÿng logo' },
         dueDate: 'Feb 18',
         amount: '$900',
         status: 'Approved',
         action: null,
         reviewAction: 'View Product',
         reviewNote: 'Approved logo explorations are archived for reference.',
-<<<<<<< HEAD
-=======
-        previewUrl: 'https://dribbble.com/shots/logo-concepts-review',
->>>>>>> origin/review
       },
       {
-        title: { en: 'Final Brand Kit', vi: 'Bộ nhận diện cuối cùng' },
+        title: { en: 'Final Brand Kit', vi: 'Bá»™ nháº­n diá»‡n cuá»‘i cÃ¹ng' },
         dueDate: 'Mar 2',
         amount: '$800',
         status: 'Completed',
         action: null,
         reviewAction: 'Review Product',
         reviewNote: 'Final brand package is ready for final review.',
-<<<<<<< HEAD
-=======
-        previewUrl: 'https://www.behance.net/gallery/final-brand-kit-review',
->>>>>>> origin/review
       },
     ],
   },
@@ -333,7 +313,6 @@ export const disputes = [
     ],
   },
 ];
-<<<<<<< HEAD
 
 export const freelancerProfiles = [
   {
@@ -480,5 +459,3 @@ export const freelancerProfiles = [
     ],
   },
 ];
-=======
->>>>>>> origin/review

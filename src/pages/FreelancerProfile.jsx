@@ -31,10 +31,15 @@ const labels = {
   balanceDesc: 'Reserved across your active supplier contracts.',
 };
 
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const TOKEN_KEY = 'fptp_token';
+
 function FreelancerProfile() {
   const navigate = useNavigate();
   const { profileId } = useParams();
   const [user, setUser] = useState(JSON.parse(localStorage.getItem('fptp_user') || '{}'));
+  const [contacting, setContacting] = useState(false);
+  const [contactStatus, setContactStatus] = useState({ type: '', message: '' });
   const profile = useMemo(
     () => freelancerProfiles.find((item) => item.id === profileId),
     [profileId],
@@ -57,6 +62,50 @@ function FreelancerProfile() {
 
     setUser(nextUser);
     localStorage.setItem('fptp_user', JSON.stringify(nextUser));
+  };
+
+  const handleContactFreelancer = async () => {
+    const token = localStorage.getItem(TOKEN_KEY);
+    if (!token) {
+      navigate('/login');
+      return;
+    }
+
+    setContacting(true);
+    setContactStatus({ type: '', message: '' });
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/chat/threads`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          counterpartyRole: 'freelancer',
+          contract: `${profile.fullName} profile discussion`,
+        }),
+      });
+
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data.message || 'Could not start the conversation.');
+      }
+
+      navigate('/client-dashboard', {
+        state: {
+          initialPage: 'chat',
+          initialThreadId: data.thread?.id || '',
+        },
+      });
+    } catch (error) {
+      setContactStatus({
+        type: 'error',
+        message: error instanceof Error ? error.message : 'Could not start the conversation.',
+      });
+    } finally {
+      setContacting(false);
+    }
   };
 
   const dashboardLayout = (content) => (
@@ -189,13 +238,23 @@ function FreelancerProfile() {
             </div>
 
             <div className="mt-6 flex flex-wrap gap-3">
-              <button type="button" className="rounded-2xl bg-ink px-5 py-3 text-sm font-semibold text-white">
-                Invite to job
+              <button
+                type="button"
+                onClick={handleContactFreelancer}
+                disabled={contacting}
+                className="rounded-2xl bg-ink px-5 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {contacting ? 'Opening chat...' : 'Contact freelancer'}
               </button>
               <button type="button" className="rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700">
-                Start protected contract
+                Invite to job
               </button>
             </div>
+            {contactStatus.message ? (
+              <p className={`mt-4 rounded-2xl px-4 py-3 text-sm ${contactStatus.type === 'error' ? 'bg-rose-50 text-rose-700' : 'bg-emerald-50 text-emerald-700'}`}>
+                {contactStatus.message}
+              </p>
+            ) : null}
           </div>
         </div>
       </SectionCard>
