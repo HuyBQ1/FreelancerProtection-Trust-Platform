@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 import { useEffect, useMemo, useState } from 'react';
 import { ArrowUpRight, MessageSquarePlus, Paperclip, Search, SendHorizonal } from 'lucide-react';
 import { io } from 'socket.io-client';
@@ -220,11 +221,31 @@ function ChatPanel({ currentUser, userName }) {
       </SectionCard>
     );
   }
+=======
+import { useMemo, useState } from 'react';
+import { ArrowUpRight, Paperclip, Search, SendHorizonal } from 'lucide-react';
+import SectionCard from './SectionCard';
+
+function ChatPanel({ userRole, userName, threads }) {
+  const [selectedThreadId, setSelectedThreadId] = useState(threads[0]?.id ?? 1);
+  const [draft, setDraft] = useState('');
+
+  const selectedThread = useMemo(
+    () => threads.find((thread) => thread.id === selectedThreadId) ?? threads[0],
+    [selectedThreadId, threads],
+  );
+
+  const normalizedRole = userRole === 'client' ? 'client' : 'freelancer';
+>>>>>>> origin/review
 
   return (
     <div className="grid gap-6 2xl:grid-cols-[360px_minmax(0,1fr)]">
       <SectionCard className="p-5">
+<<<<<<< HEAD
         <div className="flex items-center justify-between gap-3">
+=======
+        <div className="flex items-center justify-between">
+>>>>>>> origin/review
           <div>
             <p className="muted">Direct chat</p>
             <h2 className="mt-1 text-2xl font-bold text-ink">Messages</h2>
@@ -236,6 +257,7 @@ function ChatPanel({ currentUser, userName }) {
 
         <label className="mt-5 flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
           <Search className="h-4 w-4 text-slate-400" />
+<<<<<<< HEAD
           <input
             value={search}
             onChange={(event) => setSearch(event.target.value)}
@@ -262,6 +284,13 @@ function ChatPanel({ currentUser, userName }) {
 
         <div className="mt-5 space-y-3">
           {visibleThreads.map((thread) => (
+=======
+          <input placeholder="Search chat" className="w-full bg-transparent text-sm outline-none placeholder:text-slate-400" />
+        </label>
+
+        <div className="mt-5 space-y-3">
+          {threads.map((thread) => (
+>>>>>>> origin/review
             <button
               key={thread.id}
               onClick={() => setSelectedThreadId(thread.id)}
@@ -291,16 +320,20 @@ function ChatPanel({ currentUser, userName }) {
               </div>
             </button>
           ))}
+<<<<<<< HEAD
 
           {visibleThreads.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-5 text-sm text-slate-500">
               No conversations yet. Click `Start conversation` to create your first chat thread.
             </div>
           ) : null}
+=======
+>>>>>>> origin/review
         </div>
       </SectionCard>
 
       <SectionCard className="flex min-h-[680px] flex-col p-0">
+<<<<<<< HEAD
         {selectedThread ? (
           <>
             <div className="flex items-center justify-between border-b border-slate-200 px-6 py-5">
@@ -394,6 +427,59 @@ function ChatPanel({ currentUser, userName }) {
             </button>
           </div>
         )}
+=======
+        <div className="flex items-center justify-between border-b border-slate-200 px-6 py-5">
+          <div>
+            <p className="text-xl font-bold text-ink">{selectedThread.participant}</p>
+            <p className="mt-1 text-sm text-slate-500">{selectedThread.contract}</p>
+          </div>
+          <button className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50">
+            Open contract
+            <ArrowUpRight className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="flex-1 space-y-4 overflow-auto px-6 py-6">
+          {selectedThread.messages.map((message) => {
+            const mine = message.senderRole === normalizedRole;
+            return (
+              <div key={message.id} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
+                <div className={`max-w-[80%] rounded-3xl px-4 py-3 ${mine ? 'bg-ink text-white' : 'bg-slate-100 text-slate-800'}`}>
+                  <p className={`text-xs font-semibold ${mine ? 'text-white/70' : 'text-slate-500'}`}>{mine ? userName : message.senderName}</p>
+                  <p className="mt-2 text-sm leading-6">{message.text}</p>
+                  <p className={`mt-2 text-xs ${mine ? 'text-white/60' : 'text-slate-400'}`}>{message.time}</p>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="border-t border-slate-200 px-6 py-5">
+          <div className="rounded-[28px] border border-slate-200 bg-slate-50 p-3">
+            <textarea
+              value={draft}
+              onChange={(event) => setDraft(event.target.value)}
+              rows={3}
+              placeholder="Type a message to the other side..."
+              className="w-full resize-none bg-transparent px-2 py-1 text-sm outline-none placeholder:text-slate-400"
+            />
+            <div className="mt-3 flex items-center justify-between">
+              <button className="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold text-slate-600 transition hover:bg-white hover:text-slate-900">
+                <Paperclip className="h-4 w-4" />
+                Attach file
+              </button>
+              <button
+                type="button"
+                onClick={() => setDraft('')}
+                className="inline-flex items-center gap-2 rounded-xl bg-ink px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800"
+              >
+                <SendHorizonal className="h-4 w-4" />
+                Send
+              </button>
+            </div>
+          </div>
+        </div>
+>>>>>>> origin/review
       </SectionCard>
     </div>
   );

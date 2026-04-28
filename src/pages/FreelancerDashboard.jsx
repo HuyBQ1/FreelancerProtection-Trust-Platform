@@ -1,4 +1,8 @@
+<<<<<<< HEAD
 import React, { useState, useEffect } from 'react';
+=======
+import { useState } from 'react';
+>>>>>>> origin/review
 import { ChevronRight, CircleCheckBig, Clock3, Eye, HandCoins, Hourglass, Search, Shield, Upload, UserRound } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import Sidebar from '../components/Sidebar';
@@ -9,7 +13,11 @@ import JobCard from '../components/JobCard';
 import StatusBadge from '../components/StatusBadge';
 import ChatPanel from '../components/ChatPanel';
 import SettingsPanel from '../components/SettingsPanel';
+<<<<<<< HEAD
 import { activities, contracts, disputes, escrowSummary, jobs, sidebarItems, stats } from '../data/mockData';
+=======
+import { activities, chatThreads, contracts, disputes, escrowSummary, jobs, sidebarItems, stats } from '../data/mockData';
+>>>>>>> origin/review
 
 const pageTabs = ['dashboard', 'marketplace', 'contracts', 'chat', 'escrow', 'disputes'];
 const filters = ['All', 'Design', 'Development', 'Security', 'Legal'];
@@ -49,6 +57,7 @@ function FreelancerDashboard() {
   const [selectedFilter, setSelectedFilter] = useState('All');
   const [selectedContractId, setSelectedContractId] = useState(contracts[0]?.id ?? 1);
   const [selectedDisputeId, setSelectedDisputeId] = useState(disputes[0]?.id ?? 1);
+<<<<<<< HEAD
   const [escrowBalance, setEscrowBalance] = useState(escrowSummary.amount);
 
   // Fetch Escrow Summary from Backend
@@ -71,6 +80,8 @@ function FreelancerDashboard() {
     };
     fetchSummary();
   }, []);
+=======
+>>>>>>> origin/review
 
   const filteredJobs = jobs.filter((job) => (
     (job.title.en.toLowerCase().includes(query.toLowerCase()) || job.client.toLowerCase().includes(query.toLowerCase())) &&
@@ -255,7 +266,11 @@ function FreelancerDashboard() {
       <div className="grid gap-6 lg:grid-cols-[1.05fr_0.95fr]">
         <SectionCard className="p-6">
           <div className="flex items-center justify-between"><div><p className="muted">Escrow</p><h2 className="mt-1 text-xl font-bold text-ink">Protected balance</h2></div><Shield className="h-5 w-5 text-pine" /></div>
+<<<<<<< HEAD
           <div className="mt-6 rounded-[28px] bg-ink p-6 text-white"><p className="text-sm text-white/70">Deposited amount</p><p className="mt-2 text-4xl font-bold">{escrowBalance}</p><div className="mt-5 flex items-center justify-between"><span className="text-sm text-white/70">Status</span><StatusBadge status={escrowSummary.status} dark label={escrowSummary.status} /></div></div>
+=======
+          <div className="mt-6 rounded-[28px] bg-ink p-6 text-white"><p className="text-sm text-white/70">Deposited amount</p><p className="mt-2 text-4xl font-bold">{escrowSummary.amount}</p><div className="mt-5 flex items-center justify-between"><span className="text-sm text-white/70">Status</span><StatusBadge status={escrowSummary.status} dark label={escrowSummary.status} /></div></div>
+>>>>>>> origin/review
         </SectionCard>
         <SectionCard className="p-6">
           <p className="muted">Escrow timeline</p>
@@ -271,8 +286,14 @@ function FreelancerDashboard() {
   if (activePage === 'chat') {
     return dashboardLayout(
       <ChatPanel
+<<<<<<< HEAD
         currentUser={user}
         userName={user?.fullName || user?.email || 'Freelancer'}
+=======
+        userRole="freelancer"
+        userName={user?.fullName || user?.email || 'Freelancer'}
+        threads={chatThreads}
+>>>>>>> origin/review
       />,
     );
   }
@@ -323,7 +344,11 @@ function FreelancerDashboard() {
   return dashboardLayout(
     <div className="space-y-6">
       <section className="grid gap-5 md:grid-cols-3">
+<<<<<<< HEAD
         {stats.map((stat) => <StatCard key={stat.label.en} {...stat} label={stat.label.en} hint={stat.hint.en} value={stat.label.en === 'Balance' && escrowBalance ? escrowBalance : stat.value} />)}
+=======
+        {stats.map((stat) => <StatCard key={stat.label.en} {...stat} label={stat.label.en} hint={stat.hint.en} />)}
+>>>>>>> origin/review
       </section>
       <SectionCard className="p-6">
         <div><p className="muted">Recent activities</p><h2 className="mt-1 text-xl font-bold text-ink">Platform overview</h2></div>

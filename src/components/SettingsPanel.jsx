@@ -4,10 +4,16 @@ import SectionCard from './SectionCard';
 
 const TOKEN_KEY = 'fptp_token';
 const USER_KEY = 'fptp_user';
+<<<<<<< HEAD
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 const PROFILE_URL = `${API_BASE_URL}/users/profile`;
 const SETTINGS_URL = `${API_BASE_URL}/users/settings`;
 const AVATAR_URL = `${API_BASE_URL}/users/avatar`;
+=======
+const PROFILE_URL = 'http://localhost:5000/api/users/profile';
+const SETTINGS_URL = 'http://localhost:5000/api/users/settings';
+const AVATAR_URL = 'http://localhost:5000/api/users/avatar';
+>>>>>>> origin/review
 
 function buildDefaultForm(user) {
   return {
@@ -64,6 +70,7 @@ function SettingsPanel({ user, onUserChange, initialSection = 'profile', mode = 
     setActiveSection(initialSection);
   }, [initialSection]);
 
+<<<<<<< HEAD
   useEffect(() => {
     const token = localStorage.getItem(TOKEN_KEY);
     if (!token) return;
@@ -96,6 +103,8 @@ function SettingsPanel({ user, onUserChange, initialSection = 'profile', mode = 
     };
   }, []);
 
+=======
+>>>>>>> origin/review
   const roleLabel = useMemo(() => (user?.role === 'client' ? 'Client' : 'Freelancer'), [user?.role]);
   const maskedAccountNumber = form.accountNumber
     ? form.accountNumber.replace(/\s+/g, '').replace(/(.{4})/g, '$1 ').trim()
@@ -168,7 +177,11 @@ function SettingsPanel({ user, onUserChange, initialSection = 'profile', mode = 
 
     const token = localStorage.getItem(TOKEN_KEY);
     if (!token) {
+<<<<<<< HEAD
       saveLocally(mode === 'bank' ? 'Bank account saved locally.' : 'Settings saved locally.');
+=======
+      saveLocally();
+>>>>>>> origin/review
       setSaving(false);
       return;
     }
@@ -246,6 +259,7 @@ function SettingsPanel({ user, onUserChange, initialSection = 'profile', mode = 
       }
 
       persistUser(settingsData.user);
+<<<<<<< HEAD
       setStatus({
         type: 'success',
         message: mode === 'bank' ? 'Successfully.' : 'Settings updated successfully.',
@@ -255,6 +269,11 @@ function SettingsPanel({ user, onUserChange, initialSection = 'profile', mode = 
         type: 'error',
         message: error instanceof Error ? error.message : 'Could not save your changes to the server.',
       });
+=======
+      setStatus({ type: 'success', message: 'Settings updated successfully.' });
+    } catch (error) {
+      saveLocally(error instanceof Error ? `${error.message} Saved locally instead.` : 'Settings saved locally.');
+>>>>>>> origin/review
     } finally {
       setSaving(false);
     }
@@ -341,11 +360,15 @@ function SettingsPanel({ user, onUserChange, initialSection = 'profile', mode = 
                   </label>
                 </div>
 
+<<<<<<< HEAD
                 {status.message ? (
                   <p className={`mt-6 rounded-2xl px-4 py-3 text-sm ${status.type === 'error' ? 'bg-rose-50 text-rose-700' : 'bg-emerald-50 text-emerald-700'}`}>
                     {status.message}
                   </p>
                 ) : null}
+=======
+                {status.message ? <p className="mt-6 rounded-2xl bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{status.message}</p> : null}
+>>>>>>> origin/review
 
                 <button type="submit" disabled={saving} className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-ink px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60">
                   <Save className="h-4 w-4" />
@@ -495,11 +518,15 @@ function SettingsPanel({ user, onUserChange, initialSection = 'profile', mode = 
                 <h3 className="text-xl font-bold text-ink">Update account</h3>
               </div>
             </div>
+<<<<<<< HEAD
             {status.message ? (
               <p className={`mt-5 rounded-2xl px-4 py-3 text-sm ${status.type === 'error' ? 'bg-rose-50 text-rose-700' : 'bg-emerald-50 text-emerald-700'}`}>
                 {status.message}
               </p>
             ) : null}
+=======
+            {status.message ? <p className="mt-5 rounded-2xl bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{status.message}</p> : null}
+>>>>>>> origin/review
             <button type="submit" disabled={saving} className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-ink px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60">
               <Save className="h-4 w-4" />
               {saving ? 'Saving...' : 'Save changes'}

@@ -1,6 +1,12 @@
+<<<<<<< HEAD
 import React, { useState, useEffect } from 'react';
 import { BriefcaseBusiness, CircleDollarSign, ClipboardCheck, Eye, MessageSquareMore, Search, Shield, Users } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
+=======
+import { useState } from 'react';
+import { BriefcaseBusiness, CircleDollarSign, ClipboardCheck, Eye, MessageSquareMore, Search, Shield, Users } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+>>>>>>> origin/review
 import Sidebar from '../components/Sidebar';
 import Topbar from '../components/Topbar';
 import StatCard from '../components/StatCard';
@@ -8,7 +14,37 @@ import SectionCard from '../components/SectionCard';
 import JobCard from '../components/JobCard';
 import ChatPanel from '../components/ChatPanel';
 import SettingsPanel from '../components/SettingsPanel';
+<<<<<<< HEAD
 import { contracts, disputes, freelancerProfiles, sidebarItems } from '../data/mockData';
+=======
+import ReviewPanel from '../components/ReviewPanel.jsx';
+import ReviewDisplay from '../components/ReviewDisplay.jsx';
+import { chatThreads, contracts, disputes, sidebarItems } from '../data/mockData';
+
+const reviewContractMeta = {
+  1: {
+    contractId: '507f1f77bcf86cd799439011',
+    recipientId: '507f1f77bcf86cd799439012',
+    recipientName: 'Ariana Lee',
+    milestoneIds: {
+      'Wireframes & User Flows': 'milestone-1-1',
+      'High-Fidelity Mockups': 'milestone-1-2',
+      'Prototype & Animations': 'milestone-1-3',
+      'Handoff & Documentation': 'milestone-1-4',
+    },
+  },
+  2: {
+    contractId: '507f191e810c19729de860ea',
+    recipientId: '507f191e810c19729de860eb',
+    recipientName: 'Ariana Lee',
+    milestoneIds: {
+      'Brand Discovery': 'milestone-2-1',
+      'Logo Concepts': 'milestone-2-2',
+      'Final Brand Kit': 'milestone-2-3',
+    },
+  },
+};
+>>>>>>> origin/review
 
 const pageTabs = ['dashboard', 'marketplace', 'contracts', 'chat', 'escrow', 'disputes'];
 const labels = {
@@ -35,11 +71,20 @@ const titles = {
   disputes: 'Disputes',
   settings: 'Settings',
 };
+<<<<<<< HEAD
+=======
+const clientStats = [
+  { label: 'Open jobs', value: '12', hint: '4 new proposals today', icon: BriefcaseBusiness, accent: 'bg-pine/10 text-pine' },
+  { label: 'Pending approvals', value: '3', hint: 'Milestones waiting for review', icon: ClipboardCheck, accent: 'bg-coral/10 text-coral' },
+  { label: 'Protected spend', value: '$18,400', hint: '$6,200 currently held in escrow', icon: CircleDollarSign, accent: 'bg-gold/10 text-gold' },
+];
+>>>>>>> origin/review
 const clientActivities = [
   { title: 'Proposal shortlist updated', description: '3 freelancers were moved to the final review stage for the dashboard redesign role.', time: '20 minutes ago', icon: Users },
   { title: 'Milestone awaiting approval', description: 'Prototype & Animations was submitted and is waiting for your review.', time: '2 hours ago', icon: ClipboardCheck },
   { title: 'Escrow funded successfully', description: 'A new milestone deposit was confirmed for the mobile app design contract.', time: 'Yesterday', icon: Shield },
 ];
+<<<<<<< HEAD
 
 function ClientDashboard() {
   const navigate = useNavigate();
@@ -71,6 +116,26 @@ function ClientDashboard() {
   }, []);
 
   const selectedContract = contracts.find((item) => item.id === selectedContractId) ?? contracts[0];
+=======
+const clientCards = [
+  { title: 'Senior React freelancer shortlist', budget: '$4,500', client: '12 matched freelancers', category: 'Development', description: 'Review top candidates for your trust portal build and compare availability, rates, and ratings.' },
+  { title: 'UI/UX designer recommendations', budget: '$3,000', client: '8 available profiles', category: 'Design', description: 'Hand-picked designers with strong escrow workflow and product interface experience.' },
+];
+
+function ClientDashboard() {
+  const navigate = useNavigate();
+  const [user, setUser] = useState(JSON.parse(localStorage.getItem('fptp_user') || '{}'));
+  const [activePage, setActivePage] = useState('dashboard');
+  const [settingsSection, setSettingsSection] = useState('profile');
+  const [selectedContractId, setSelectedContractId] = useState(contracts[0]?.id ?? 1);
+  const [query, setQuery] = useState('');
+  const [isReviewOpen, setIsReviewOpen] = useState(false);
+  const [selectedMilestone, setSelectedMilestone] = useState(null);
+  const [reviewRefreshToken, setReviewRefreshToken] = useState(0);
+
+  const selectedContract = contracts.find((item) => item.id === selectedContractId) ?? contracts[0];
+  const selectedReviewMeta = reviewContractMeta[selectedContract?.id] ?? null;
+>>>>>>> origin/review
 
   const logout = () => {
     localStorage.removeItem('fptp_token');
@@ -91,6 +156,7 @@ function ClientDashboard() {
     localStorage.setItem('fptp_user', JSON.stringify(nextUser));
   };
 
+<<<<<<< HEAD
   const releasePayment = async () => {
     const releaseAmount = 800; // Mock release amount matching backend
     try {
@@ -119,6 +185,24 @@ function ClientDashboard() {
       console.error('API call failed, proceeding with UI mock update:', err);
     }
     setEscrowBalance((prev) => prev + depositAmount);
+=======
+  const handlePreviewOpen = (milestone, index) => {
+    const milestoneWithId = {
+      ...milestone,
+      _id: selectedReviewMeta?.milestoneIds?.[milestone.title.en] ?? `milestone-${selectedContract.id}-${index + 1}`,
+    };
+
+    setSelectedMilestone(milestoneWithId);
+
+    const targetUrl = milestone.draftUrl || milestone.previewUrl;
+
+    if (!targetUrl) {
+      alert('No preview available for this milestone yet.');
+      return;
+    }
+
+    window.open(targetUrl, '_blank', 'noopener,noreferrer');
+>>>>>>> origin/review
   };
 
   const dashboardLayout = (content) => (
@@ -160,17 +244,25 @@ function ClientDashboard() {
   );
 
   if (activePage === 'marketplace') {
+<<<<<<< HEAD
     const list = freelancerProfiles.filter((item) => {
       const target = `${item.fullName} ${item.headline} ${item.specialty} ${item.skills.join(' ')}`.toLowerCase();
       return target.includes(query.toLowerCase());
     });
+=======
+    const list = clientCards.filter((item) => item.title.toLowerCase().includes(query.toLowerCase()) || item.client.toLowerCase().includes(query.toLowerCase()));
+>>>>>>> origin/review
     return dashboardLayout(
       <div className="space-y-6">
         <SectionCard className="p-6">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <p className="muted">Talent Marketplace</p>
+<<<<<<< HEAD
               <h2 className="mt-1 text-xl font-bold text-ink">Freelancer profiles ready for client review</h2>
+=======
+              <h2 className="mt-1 text-xl font-bold text-ink">Recommended talent and active hiring briefs</h2>
+>>>>>>> origin/review
             </div>
             <label className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
               <Search className="h-4 w-4 text-slate-400" />
@@ -179,6 +271,7 @@ function ClientDashboard() {
           </div>
         </SectionCard>
         <div className="grid gap-5 xl:grid-cols-2">
+<<<<<<< HEAD
           {list.map((item) => (
             <JobCard
               key={item.id}
@@ -204,6 +297,10 @@ function ClientDashboard() {
             </p>
           </SectionCard>
         ) : null}
+=======
+          {list.map((item) => <JobCard key={item.title} job={item} labels={{ budget: 'Budget / rate', client: 'Pipeline' }} />)}
+        </div>
+>>>>>>> origin/review
       </div>,
     );
   }
@@ -234,7 +331,11 @@ function ClientDashboard() {
               <div><p className="text-sm text-slate-500">Progress</p><p className="mt-2 text-2xl font-bold text-ink">{selectedContract.progress}%</p></div>
             </div>
             <div className="mt-8 space-y-4">
+<<<<<<< HEAD
               {selectedContract.milestones.map((milestone) => (
+=======
+              {selectedContract.milestones.map((milestone, index) => (
+>>>>>>> origin/review
                 <div key={milestone.title.en} className="rounded-2xl border border-slate-200 p-4">
                   <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
                     <div className="min-w-0">
@@ -247,13 +348,33 @@ function ClientDashboard() {
                     </div>
                     <div className="flex shrink-0 flex-wrap gap-2">
                       {milestone.reviewAction ? (
+<<<<<<< HEAD
                         <button className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-indigo-200 hover:text-indigo-600">
+=======
+                        <button
+                          onClick={() => handlePreviewOpen(milestone, index)}
+                          className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-indigo-200 hover:text-indigo-600"
+                        >
+>>>>>>> origin/review
                           <Eye className="h-4 w-4" />
                           {milestone.reviewAction}
                         </button>
                       ) : null}
                       {(milestone.action === 'Approve' || milestone.reviewAction === 'Review Product') ? (
+<<<<<<< HEAD
                         <button className="inline-flex items-center gap-2 rounded-xl bg-ink px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800">
+=======
+                        <button
+                          onClick={() => {
+                            setSelectedMilestone({
+                              ...milestone,
+                              _id: selectedReviewMeta?.milestoneIds?.[milestone.title.en] ?? `milestone-${selectedContract.id}-${index + 1}`,
+                            });
+                            setIsReviewOpen(true);
+                          }}
+                          className="inline-flex items-center gap-2 rounded-xl bg-ink px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800"
+                        >
+>>>>>>> origin/review
                           <MessageSquareMore className="h-4 w-4" />
                           Review Product
                         </button>
@@ -263,6 +384,35 @@ function ClientDashboard() {
                 </div>
               ))}
             </div>
+<<<<<<< HEAD
+=======
+
+            {/* ReviewPanel Modal */}
+            <ReviewPanel
+              isOpen={isReviewOpen}
+              onClose={() => setIsReviewOpen(false)}
+              onSubmitted={() => setReviewRefreshToken((value) => value + 1)}
+              contractTitle={selectedContract?.title?.en}
+              milestoneTitle={selectedMilestone?.title?.en}
+              recipientName={selectedReviewMeta?.recipientName ?? 'Freelancer'}
+              contractId={selectedReviewMeta?.contractId}
+              milestoneId={selectedMilestone?._id}
+              recipientId={selectedReviewMeta?.recipientId}
+            />
+
+            {/* ReviewDisplay */}
+            {selectedMilestone && (
+              <div className="mt-8">
+                <h4 className="text-lg font-semibold text-ink mb-4">Project Reviews</h4>
+                <ReviewDisplay
+                  contractId={selectedReviewMeta?.contractId}
+                  milestoneId={selectedMilestone?._id}
+                  refreshToken={reviewRefreshToken}
+                />
+
+              </div>
+            )}
+>>>>>>> origin/review
           </SectionCard>
         </div>
       </div>,
@@ -277,10 +427,17 @@ function ClientDashboard() {
           <h2 className="mt-1 text-xl font-bold text-ink">Protected client budget</h2>
           <div className="mt-6 rounded-[28px] bg-ink p-6 text-white">
             <p className="text-sm text-white/70">Reserved project budget</p>
+<<<<<<< HEAD
             <p className="mt-2 text-4xl font-bold">${escrowBalance.toLocaleString()}</p>
             <div className="mt-5 flex flex-wrap gap-3">
               <button onClick={releasePayment} className="rounded-2xl bg-white px-4 py-2 text-sm font-semibold text-ink">Release payment</button>
               <button onClick={createDeposit} className="rounded-2xl border border-white/15 px-4 py-2 text-sm font-semibold text-white">Create deposit</button>
+=======
+            <p className="mt-2 text-4xl font-bold">$18,400</p>
+            <div className="mt-5 flex flex-wrap gap-3">
+              <button className="rounded-2xl bg-white px-4 py-2 text-sm font-semibold text-ink">Release payment</button>
+              <button className="rounded-2xl border border-white/15 px-4 py-2 text-sm font-semibold text-white">Create deposit</button>
+>>>>>>> origin/review
             </div>
           </div>
         </SectionCard>
@@ -300,8 +457,18 @@ function ClientDashboard() {
   if (activePage === 'chat') {
     return dashboardLayout(
       <ChatPanel
+<<<<<<< HEAD
         currentUser={user}
         userName={user?.fullName || user?.email || 'Client'}
+=======
+        userRole="client"
+        userName={user?.fullName || user?.email || 'Client'}
+        threads={chatThreads.map((thread) => ({
+          ...thread,
+          participantRole: 'Freelancer',
+          participant: thread.messages.find((message) => message.senderRole === 'freelancer')?.senderName || thread.participant,
+        }))}
+>>>>>>> origin/review
       />,
     );
   }
@@ -347,25 +514,39 @@ function ClientDashboard() {
             <h2 className="mt-3 text-3xl font-bold tracking-tight">Manage hiring, approvals, and escrow releases</h2>
             <p className="mt-4 max-w-2xl text-sm leading-7 text-white/75">Review incoming work, approve milestones, track protected budget, and keep every contract under control from one client workspace.</p>
             <div className="mt-6 flex flex-wrap gap-3">
+<<<<<<< HEAD
                <button className="rounded-2xl bg-white px-5 py-3 text-sm font-semibold text-ink">Add Job</button>
                <button onClick={() => setActivePage('marketplace')} className="rounded-2xl border border-white/15 px-5 py-3 text-sm font-semibold text-white">Review Proposals</button>
                <button onClick={() => setActivePage('escrow')} className="rounded-2xl border border-white/15 px-5 py-3 text-sm font-semibold text-white">Fund Escrow</button>
+=======
+              <button className="rounded-2xl bg-white px-5 py-3 text-sm font-semibold text-ink">Add Job</button>
+              <button onClick={() => setActivePage('marketplace')} className="rounded-2xl border border-white/15 px-5 py-3 text-sm font-semibold text-white">Review Proposals</button>
+              <button onClick={() => setActivePage('escrow')} className="rounded-2xl border border-white/15 px-5 py-3 text-sm font-semibold text-white">Fund Escrow</button>
+>>>>>>> origin/review
             </div>
           </div>
           <div className="bg-slate-50 px-6 py-8 sm:px-8">
             <div className="space-y-4">
               <div className="rounded-3xl border border-slate-200 bg-white p-5"><p className="text-sm text-slate-500">Pending approvals</p><p className="mt-2 text-3xl font-bold text-ink">3</p><p className="mt-2 text-sm text-slate-500">Milestones waiting for your review this week.</p></div>
+<<<<<<< HEAD
               <div className="rounded-3xl border border-slate-200 bg-white p-5"><p className="text-sm text-slate-500">Protected budget</p><p className="mt-2 text-3xl font-bold text-ink">${escrowBalance.toLocaleString()}</p><p className="mt-2 text-sm text-slate-500">Reserved in escrow across active supplier contracts.</p><button onClick={() => setActivePage('escrow')} className="mt-4 rounded-xl bg-ink px-4 py-2 text-sm font-semibold text-white">Pay milestone</button></div>
+=======
+              <div className="rounded-3xl border border-slate-200 bg-white p-5"><p className="text-sm text-slate-500">Protected budget</p><p className="mt-2 text-3xl font-bold text-ink">$6,200</p><p className="mt-2 text-sm text-slate-500">Reserved in escrow across active supplier contracts.</p><button onClick={() => setActivePage('escrow')} className="mt-4 rounded-xl bg-ink px-4 py-2 text-sm font-semibold text-white">Pay milestone</button></div>
+>>>>>>> origin/review
             </div>
           </div>
         </div>
       </SectionCard>
       <section className="grid gap-5 md:grid-cols-3">
+<<<<<<< HEAD
         {[
           { label: 'Open jobs', value: '12', hint: '4 new proposals today', icon: BriefcaseBusiness, accent: 'bg-pine/10 text-pine' },
           { label: 'Pending approvals', value: '3', hint: 'Milestones waiting for review', icon: ClipboardCheck, accent: 'bg-coral/10 text-coral' },
           { label: 'Protected spend', value: escrowBalance > 0 ? `$${escrowBalance.toLocaleString()}` : '$0', hint: '$6,200 currently held in escrow', icon: CircleDollarSign, accent: 'bg-gold/10 text-gold' },
         ].map((stat) => <StatCard key={stat.label} {...stat} />)}
+=======
+        {clientStats.map((stat) => <StatCard key={stat.label} {...stat} />)}
+>>>>>>> origin/review
       </section>
       <SectionCard className="p-6">
         <div><p className="muted">Client activity</p><h2 className="mt-1 text-xl font-bold text-ink">Hiring and approval overview</h2></div>
@@ -373,6 +554,7 @@ function ClientDashboard() {
           {clientActivities.map((activity) => <div key={activity.title} className="flex items-start gap-4 rounded-2xl border border-slate-200 bg-slate-50 p-4"><div className="mt-1 rounded-2xl bg-white p-3 shadow-sm"><activity.icon className="h-5 w-5 text-pine" /></div><div className="flex-1"><div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between"><h3 className="font-semibold text-slate-900">{activity.title}</h3><span className="text-sm text-slate-400">{activity.time}</span></div><p className="mt-1 text-sm leading-6 text-slate-600">{activity.description}</p></div></div>)}
         </div>
       </SectionCard>
+<<<<<<< HEAD
       <SectionCard className="p-6">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
@@ -422,6 +604,8 @@ function ClientDashboard() {
           ))}
         </div>
       </SectionCard>
+=======
+>>>>>>> origin/review
     </div>,
   );
 }

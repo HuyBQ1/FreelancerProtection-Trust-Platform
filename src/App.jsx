@@ -5,7 +5,10 @@ import Register from './pages/Register';
 import AdminDashboard from './pages/AdminDashboard';
 import ClientDashboard from './pages/ClientDashboard';
 import FreelancerDashboard from './pages/FreelancerDashboard';
+<<<<<<< HEAD
 import FreelancerProfile from './pages/FreelancerProfile';
+=======
+>>>>>>> origin/review
 import ProtectedRoute from './routes/ProtectedRoute';
 
 function App() {
@@ -18,7 +21,10 @@ function App() {
 
         <Route element={<ProtectedRoute allowedRole="client" />}>
           <Route path="/client-dashboard" element={<ClientDashboard />} />
+<<<<<<< HEAD
           <Route path="/freelancer-profile/:profileId" element={<FreelancerProfile />} />
+=======
+>>>>>>> origin/review
         </Route>
 
         <Route element={<ProtectedRoute allowedRole="freelancer" />}>

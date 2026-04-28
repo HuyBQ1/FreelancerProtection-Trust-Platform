@@ -1,5 +1,6 @@
 import mongoose from 'mongoose';
 import env from './env.js';
+<<<<<<< HEAD
 import { MongoMemoryServer } from 'mongodb-memory-server';
 
 let mongoServer;
@@ -23,4 +24,12 @@ export async function connectDatabase() {
     console.error('Lỗi kết nối MongoDB:', error.message);
     // Removed process.exit(1) to prevent backend crash on timeout, keeping mock endpoints alive
   }
+=======
+
+export async function connectDatabase() {
+  await mongoose.connect(env.mongodbUri, {
+    serverSelectionTimeoutMS: 5000,
+  });
+  console.log('MongoDB connected');
+>>>>>>> origin/review
 }

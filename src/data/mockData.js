@@ -186,6 +186,10 @@ export const contracts = [
         action: null,
         reviewAction: 'View Product',
         reviewNote: 'Approved deliverables remain available for review.',
+<<<<<<< HEAD
+=======
+        previewUrl: 'https://www.figma.com/proto/mobile-wireframes-review',
+>>>>>>> origin/review
       },
       {
         title: { en: 'High-Fidelity Mockups', vi: 'Mockup chi tiết' },
@@ -195,6 +199,10 @@ export const contracts = [
         action: 'Approve',
         reviewAction: 'Review Product',
         reviewNote: 'Ready for product review and payout approval.',
+<<<<<<< HEAD
+=======
+        previewUrl: 'https://www.figma.com/proto/high-fidelity-mockups-review',
+>>>>>>> origin/review
       },
       {
         title: { en: 'Prototype & Animations', vi: 'Prototype và animation' },
@@ -204,6 +212,10 @@ export const contracts = [
         action: 'Submit Work',
         reviewAction: 'View Draft',
         reviewNote: 'Latest working build is visible before final submission.',
+<<<<<<< HEAD
+=======
+        draftUrl: 'https://www.figma.com/proto/prototype-animations-draft',
+>>>>>>> origin/review
       },
       {
         title: { en: 'Handoff & Documentation', vi: 'Bàn giao và tài liệu' },
@@ -238,6 +250,10 @@ export const contracts = [
         action: null,
         reviewAction: 'View Product',
         reviewNote: 'Discovery notes and approved workshop output are available.',
+<<<<<<< HEAD
+=======
+        previewUrl: 'https://www.notion.so/brand-discovery-review',
+>>>>>>> origin/review
       },
       {
         title: { en: 'Logo Concepts', vi: 'Ý tưởng logo' },
@@ -247,6 +263,10 @@ export const contracts = [
         action: null,
         reviewAction: 'View Product',
         reviewNote: 'Approved logo explorations are archived for reference.',
+<<<<<<< HEAD
+=======
+        previewUrl: 'https://dribbble.com/shots/logo-concepts-review',
+>>>>>>> origin/review
       },
       {
         title: { en: 'Final Brand Kit', vi: 'Bộ nhận diện cuối cùng' },
@@ -256,6 +276,10 @@ export const contracts = [
         action: null,
         reviewAction: 'Review Product',
         reviewNote: 'Final brand package is ready for final review.',
+<<<<<<< HEAD
+=======
+        previewUrl: 'https://www.behance.net/gallery/final-brand-kit-review',
+>>>>>>> origin/review
       },
     ],
   },
@@ -309,6 +333,7 @@ export const disputes = [
     ],
   },
 ];
+<<<<<<< HEAD
 
 export const freelancerProfiles = [
   {
@@ -455,3 +480,5 @@ export const freelancerProfiles = [
     ],
   },
 ];
+=======
+>>>>>>> origin/review

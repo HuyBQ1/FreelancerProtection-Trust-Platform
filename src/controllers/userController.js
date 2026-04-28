@@ -1,4 +1,8 @@
+<<<<<<< HEAD
 import { ensureEmailIsAvailable } from '../services/accountService.js';
+=======
+import User from '../models/User.js';
+>>>>>>> origin/review
 
 function sanitizeUser(user) {
   return {
@@ -46,12 +50,29 @@ export async function updateProfile(req, res) {
 
   if (typeof email === 'string' && email.trim()) {
     const normalizedEmail = email.trim().toLowerCase();
+<<<<<<< HEAD
     await ensureEmailIsAvailable(normalizedEmail, req.user);
+=======
+    const existingUser = await User.findOne({
+      email: normalizedEmail,
+      _id: { $ne: req.user._id },
+    });
+
+    if (existingUser) {
+      const error = new Error('Email is already in use');
+      error.statusCode = 409;
+      throw error;
+    }
+>>>>>>> origin/review
 
     updates.email = normalizedEmail;
   }
 
+<<<<<<< HEAD
   const user = await req.accountModel.findByIdAndUpdate(req.user._id, { $set: updates }, { new: true }).select('-password');
+=======
+  const user = await User.findByIdAndUpdate(req.user._id, { $set: updates }, { new: true }).select('-password');
+>>>>>>> origin/review
 
   res.status(200).json({
     message: 'Profile updated successfully',
@@ -74,7 +95,11 @@ export async function updateAvatar(req, res) {
     throw error;
   }
 
+<<<<<<< HEAD
   const user = await req.accountModel.findByIdAndUpdate(
+=======
+  const user = await User.findByIdAndUpdate(
+>>>>>>> origin/review
     req.user._id,
     { $set: { avatar } },
     { new: true },
@@ -146,7 +171,11 @@ export async function updateUserSettings(req, res) {
     }
   }
 
+<<<<<<< HEAD
   const user = await req.accountModel.findByIdAndUpdate(req.user._id, { $set: updates }, { new: true }).select('-password');
+=======
+  const user = await User.findByIdAndUpdate(req.user._id, { $set: updates }, { new: true }).select('-password');
+>>>>>>> origin/review
 
   res.status(200).json({
     message: 'Settings updated successfully',
