@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ChevronRight, CircleCheckBig, Clock3, Eye, HandCoins, Hourglass, Search, Shield, Upload, UserRound } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import Sidebar from '../components/Sidebar';
@@ -49,6 +49,28 @@ function FreelancerDashboard() {
   const [selectedFilter, setSelectedFilter] = useState('All');
   const [selectedContractId, setSelectedContractId] = useState(contracts[0]?.id ?? 1);
   const [selectedDisputeId, setSelectedDisputeId] = useState(disputes[0]?.id ?? 1);
+  const [escrowBalance, setEscrowBalance] = useState(escrowSummary.amount);
+
+  // Fetch Escrow Summary from Backend
+  React.useEffect(() => {
+    const fetchSummary = async () => {
+      try {
+        const token = localStorage.getItem('fptp_token');
+        if (!token) return;
+        const res = await fetch('/api/escrow/summary', {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        const data = await res.json();
+        if (data.summary && data.summary.balance !== undefined) {
+          const formatted = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(data.summary.balance);
+          setEscrowBalance(formatted);
+        }
+      } catch (err) {
+        console.error('Failed to fetch escrow summary:', err);
+      }
+    };
+    fetchSummary();
+  }, []);
 
   const filteredJobs = jobs.filter((job) => (
     (job.title.en.toLowerCase().includes(query.toLowerCase()) || job.client.toLowerCase().includes(query.toLowerCase())) &&
@@ -233,7 +255,7 @@ function FreelancerDashboard() {
       <div className="grid gap-6 lg:grid-cols-[1.05fr_0.95fr]">
         <SectionCard className="p-6">
           <div className="flex items-center justify-between"><div><p className="muted">Escrow</p><h2 className="mt-1 text-xl font-bold text-ink">Protected balance</h2></div><Shield className="h-5 w-5 text-pine" /></div>
-          <div className="mt-6 rounded-[28px] bg-ink p-6 text-white"><p className="text-sm text-white/70">Deposited amount</p><p className="mt-2 text-4xl font-bold">{escrowSummary.amount}</p><div className="mt-5 flex items-center justify-between"><span className="text-sm text-white/70">Status</span><StatusBadge status={escrowSummary.status} dark label={escrowSummary.status} /></div></div>
+          <div className="mt-6 rounded-[28px] bg-ink p-6 text-white"><p className="text-sm text-white/70">Deposited amount</p><p className="mt-2 text-4xl font-bold">{escrowBalance}</p><div className="mt-5 flex items-center justify-between"><span className="text-sm text-white/70">Status</span><StatusBadge status={escrowSummary.status} dark label={escrowSummary.status} /></div></div>
         </SectionCard>
         <SectionCard className="p-6">
           <p className="muted">Escrow timeline</p>
@@ -301,7 +323,7 @@ function FreelancerDashboard() {
   return dashboardLayout(
     <div className="space-y-6">
       <section className="grid gap-5 md:grid-cols-3">
-        {stats.map((stat) => <StatCard key={stat.label.en} {...stat} label={stat.label.en} hint={stat.hint.en} />)}
+        {stats.map((stat) => <StatCard key={stat.label.en} {...stat} label={stat.label.en} hint={stat.hint.en} value={stat.label.en === 'Balance' && escrowBalance ? escrowBalance : stat.value} />)}
       </section>
       <SectionCard className="p-6">
         <div><p className="muted">Recent activities</p><h2 className="mt-1 text-xl font-bold text-ink">Platform overview</h2></div>

@@ -14,15 +14,14 @@
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
     "dotenv": "^17.2.1",
-    "lucide-react": "^0.542.0",
     "express": "^5.1.0",
     "jsonwebtoken": "^9.0.2",
+    "lucide-react": "^0.542.0",
+    "mongodb-memory-server": "^11.0.1",
     "mongoose": "^8.18.0",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
-    "react-router-dom": "^7.8.2",
-    "socket.io": "^4.8.1",
-    "socket.io-client": "^4.8.1"
+    "react-router-dom": "^7.8.2"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^5.0.0",
