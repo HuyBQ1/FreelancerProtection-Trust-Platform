@@ -2,39 +2,9 @@ import { useState } from 'react';
 import { ArrowLeft, Building2, BriefcaseBusiness, LockKeyhole, Mail, ShieldCheck } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 
-const API_URL = `${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/auth/login`;
+const API_URL = `${import.meta.env.VITE_API_URL || '/api'}/auth/login`;
 const TOKEN_KEY = 'fptp_token';
 const USER_KEY = 'fptp_user';
-
-const mockUsers = {
-  'client@example.com': {
-    token: 'mock-client-token',
-    user: {
-      id: 'mock-client',
-      fullName: 'Duong Gia Huy',
-      email: 'client@example.com',
-      role: 'client',
-    },
-  },
-  'freelancer@example.com': {
-    token: 'mock-freelancer-token',
-    user: {
-      id: 'mock-freelancer',
-      fullName: 'Ariana Lee',
-      email: 'freelancer@example.com',
-      role: 'freelancer',
-    },
-  },
-  'admin@example.com': {
-    token: 'mock-admin-token',
-    user: {
-      id: 'mock-admin',
-      fullName: 'Platform Admin',
-      email: 'admin@example.com',
-      role: 'admin',
-    },
-  },
-};
 
 async function loginRequest(email, password) {
   try {
@@ -52,14 +22,8 @@ async function loginRequest(email, password) {
 
     return data;
   } catch (error) {
-    const mockUser = mockUsers[email.toLowerCase()];
-
-    if (mockUser && password.length >= 6) {
-      return mockUser;
-    }
-
     if (error instanceof TypeError) {
-      throw new Error('Backend is not available. Use client@example.com, freelancer@example.com, or admin@example.com with any 6+ character password for mock login.');
+      throw new Error('Cannot connect to the API. Please check that the backend server and database are running.');
     }
 
     throw error;
@@ -208,14 +172,6 @@ function Login() {
                 {loading ? 'Signing in...' : 'Login'}
               </button>
             </form>
-
-            <div className="mt-6 rounded-3xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
-              <p className="font-semibold text-slate-900">Mock accounts</p>
-              <p className="mt-2">Client: `client@example.com`</p>
-              <p>Freelancer: `freelancer@example.com`</p>
-              <p>Admin: `admin@example.com`</p>
-              <p className="mt-2">Use any password with at least 6 characters if the backend is not running.</p>
-            </div>
 
             <p className="mt-6 text-sm text-slate-500">
               Need a new account?{' '}

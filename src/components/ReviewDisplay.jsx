@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Star, User } from 'lucide-react';
 
+const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
+
 const ReviewDisplay = ({ contractId, milestoneId, refreshToken = 0 }) => {
     const [reviews, setReviews] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -18,9 +20,7 @@ const ReviewDisplay = ({ contractId, milestoneId, refreshToken = 0 }) => {
     const loadReviews = async () => {
         try {
             setLoading(true);
-            const response = await fetch(
-                `http://localhost:5000/api/reviews/milestone/${contractId}/${milestoneId}`
-            );
+            const response = await fetch(`${API_BASE_URL}/reviews/milestone/${contractId}/${milestoneId}`);
 
             if (!response.ok) {
                 throw new Error('Failed to fetch reviews');

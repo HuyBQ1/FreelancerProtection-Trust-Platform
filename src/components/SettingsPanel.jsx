@@ -4,10 +4,13 @@ import SectionCard from './SectionCard';
 
 const TOKEN_KEY = 'fptp_token';
 const USER_KEY = 'fptp_user';
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
 const PROFILE_URL = `${API_BASE_URL}/users/profile`;
 const SETTINGS_URL = `${API_BASE_URL}/users/settings`;
 const AVATAR_URL = `${API_BASE_URL}/users/avatar`;
+const ESCROW_SUMMARY_URL = `${API_BASE_URL}/escrow/summary`;
+const TOP_UP_URL = `${API_BASE_URL}/escrow/top-up`;
+const WITHDRAW_URL = `${API_BASE_URL}/escrow/withdraw`;
 
 function buildDefaultForm(user) {
   return {
@@ -95,6 +98,7 @@ function SettingsPanel({ user, onUserChange, initialSection = 'profile', mode = 
       isMounted = false;
     };
   }, []);
+
 
   const roleLabel = useMemo(() => (user?.role === 'client' ? 'Client' : 'Freelancer'), [user?.role]);
   const maskedAccountNumber = form.accountNumber

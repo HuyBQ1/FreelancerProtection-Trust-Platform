@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { Star, X } from 'lucide-react';
 
+const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
+
 const ReviewPanel = ({
     isOpen,
     onClose,
@@ -69,7 +71,7 @@ const ReviewPanel = ({
 
         setLoading(true);
         try {
-            const response = await fetch('http://localhost:5000/api/reviews/create', {
+            const response = await fetch(`${API_BASE_URL}/reviews/create`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

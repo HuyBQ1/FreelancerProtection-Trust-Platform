@@ -51,6 +51,32 @@ export function createAccountSchema({ allowedRoles, defaultRole }) {
         default: 0,
         min: 0,
       },
+      isBanned: {
+        type: Boolean,
+        default: false,
+      },
+      warnings: {
+        type: Number,
+        default: 0,
+        min: 0,
+      },
+      moderation: {
+        status: {
+          type: String,
+          enum: ['Healthy', 'Review', 'Monitor', 'Escalated', 'Banned'],
+          default: 'Healthy',
+        },
+        risk: {
+          type: String,
+          enum: ['Low', 'Medium', 'High'],
+          default: 'Low',
+        },
+        reason: {
+          type: String,
+          trim: true,
+          default: '',
+        },
+      },
       settings: {
         language: {
           type: String,

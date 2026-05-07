@@ -1,74 +1,53 @@
-import mongoose from 'mongoose';
 import Contract from '../models/Contract.js';
 import Transaction from '../models/Transaction.js';
 import { findAccountByIdAndRole } from '../services/accountService.js';
 
-// Global mock state to allow UI state to sync without DB
-export const mockState = {
-  escrowBalance: 18400,
-  balance: 24600
-};
+function getStrictObjectId(value) {
+  if (typeof value !== 'string') {
+    return null;
+  }
+
+  return /^[a-fA-F0-9]{24}$/.test(value) ? value : null;
+}
 
 export const depositToEscrow = async (req, res, next) => {
   try {
-    // If DB is not connected yet, mock the response so the UI works instantly
-    if (mongoose.connection.readyState !== 1) {
-      mockState.escrowBalance += req.body.amount || 0;
-      return res.status(200).json({ message: 'Mock Deposit successful', transaction: { _id: 'mock-tx-id', amount: req.body.amount, type: 'deposit' } });
-    }
-
+    const depositAmount = Number(req.body.amount) || 0;
     const { contractId, milestoneId, amount } = req.body;
-    const clientId = req.user._id;
-    const depositAmount = Number(amount) || 0;
-
-    if (req.user.role !== 'client') {
-      return res.status(403).json({ message: 'Only clients can deposit to escrow' });
-    }
+    const validContractId = getStrictObjectId(contractId);
+    const validMilestoneId = getStrictObjectId(milestoneId);
 
     if (depositAmount <= 0) {
       return res.status(400).json({ message: 'A valid deposit amount is required' });
     }
 
-    let contract = null;
-    let milestone = null;
+    const clientId = req.user._id;
 
-    // Check if contractId is a valid MongoDB ObjectId (24 hex characters)
-    const isMock = contractId === 'mock' || typeof contractId === 'number' || String(contractId).length !== 24;
-
-    if (!isMock) {
-      contract = await Contract.findById(contractId);
-      if (!contract) {
-        return res.status(404).json({ message: 'Contract not found' });
-      }
-
-      milestone = contract.milestones.id(milestoneId);
-      if (!milestone) {
-        return res.status(404).json({ message: 'Milestone not found' });
-      }
+    if (req.user.role !== 'client') {
+      return res.status(403).json({ message: 'Only clients can deposit to escrow' });
     }
 
-    // Simulate charging client's external payment method and storing in virtual escrow
-    req.user.escrowBalance = (req.user.escrowBalance || 0) + depositAmount;
+    req.user.balance = (req.user.balance || 0) + depositAmount;
     await req.accountModel.findByIdAndUpdate(req.user._id, {
-      $set: { escrowBalance: req.user.escrowBalance },
+      $set: {
+        balance: req.user.balance,
+      },
     });
-
-    if (milestone && contract) {
-      milestone.isFunded = true;
-      milestone.status = 'In Progress';
-      await contract.save();
-    }
 
     const transaction = await Transaction.create({
       type: 'deposit',
       amount: depositAmount,
       fromUser: clientId,
-      contractId: contractId !== 'mock' ? contractId : null,
-      milestoneId: milestoneId !== 'mock' ? milestoneId : null,
-      description: `Deposit for milestone${milestone ? ': ' + milestone.title.en : ''}`
+      description: 'Balance topped up from linked payment source',
     });
 
-    res.status(200).json({ message: 'Deposit successful', transaction, milestone });
+    res.status(200).json({
+      message: 'Deposit successful',
+      transaction,
+      summary: {
+        balance: req.user.balance,
+      },
+    });
   } catch (error) {
     next(error);
   }
@@ -76,14 +55,11 @@ export const depositToEscrow = async (req, res, next) => {
 
 export const releaseToFreelancer = async (req, res, next) => {
   try {
-    // If DB is not connected yet, mock the response so the UI works instantly
-    if (mongoose.connection.readyState !== 1) {
-      mockState.escrowBalance -= 800;
-      mockState.balance += 800;
-      return res.status(200).json({ message: 'Mock Release successful', transaction: { _id: 'mock-tx-id', amount: 800, type: 'release' } });
-    }
-
+    const requestedAmount = Number(req.body?.amount) || 0;
     const { contractId, milestoneId } = req.body;
+    const validContractId = getStrictObjectId(contractId);
+    const validMilestoneId = getStrictObjectId(milestoneId);
+
     const clientId = req.user._id;
 
     if (req.user.role !== 'client') {
@@ -94,16 +70,13 @@ export const releaseToFreelancer = async (req, res, next) => {
     let contract = null;
     let milestone = null;
 
-    // Check if contractId is a valid MongoDB ObjectId (24 hex characters)
-    const isMock = contractId === 'mock' || typeof contractId === 'number' || String(contractId).length !== 24;
-
-    if (!isMock) {
-      contract = await Contract.findById(contractId);
+    if (validContractId) {
+      contract = await Contract.findById(validContractId);
       if (!contract) {
         return res.status(404).json({ message: 'Contract not found' });
       }
 
-      milestone = contract.milestones.id(milestoneId);
+      milestone = validMilestoneId ? contract.milestones.id(validMilestoneId) : null;
       if (!milestone) {
         return res.status(404).json({ message: 'Milestone not found' });
       }
@@ -113,19 +86,19 @@ export const releaseToFreelancer = async (req, res, next) => {
       }
       amount = milestone.amount;
     } else {
-      amount = 800; // Mock release amount if no real DB hit
+      amount = requestedAmount > 0 ? requestedAmount : 800;
     }
 
-    const currentEscrowBalance = req.user.escrowBalance || 0;
+    const currentAvailableBalance = req.user.balance || 0;
 
-    if (currentEscrowBalance < amount) {
-       return res.status(400).json({ message: 'Insufficient escrow balance' });
+    if (currentAvailableBalance < amount) {
+       return res.status(400).json({ message: 'Insufficient available balance' });
     }
 
     // Release funds
-    req.user.escrowBalance = currentEscrowBalance - amount;
+    req.user.balance = currentAvailableBalance - amount;
     await req.accountModel.findByIdAndUpdate(req.user._id, {
-      $set: { escrowBalance: req.user.escrowBalance },
+      $set: { balance: req.user.balance },
     });
 
     let toUser = null;
@@ -148,12 +121,19 @@ export const releaseToFreelancer = async (req, res, next) => {
       amount,
       fromUser: clientId,
       toUser,
-      contractId: contractId !== 'mock' ? contractId : null,
-      milestoneId: milestoneId !== 'mock' ? milestoneId : null,
+      contractId: validContractId,
+      milestoneId: validMilestoneId,
       description: `Release funds for milestone${milestone ? ': ' + milestone.title.en : ''}`
     });
 
-    res.status(200).json({ message: 'Funds released successfully', transaction, milestone });
+    res.status(200).json({
+      message: 'Funds released successfully',
+      transaction,
+      milestone,
+      summary: {
+        balance: req.user.balance || 0,
+      },
+    });
   } catch (error) {
     next(error);
   }
@@ -161,25 +141,87 @@ export const releaseToFreelancer = async (req, res, next) => {
 
 export const getEscrowSummary = async (req, res, next) => {
   try {
-    // If DB is not connected yet, mock the response so the UI works instantly
-    if (mongoose.connection.readyState !== 1) {
-      return res.status(200).json({ summary: { escrowBalance: mockState.escrowBalance, balance: mockState.balance, recentTransactions: [] } });
-    }
-
     const userId = req.user._id;
     
-    let summary = {};
-    if (req.user.role === 'client') {
-      summary.escrowBalance = req.user.escrowBalance || 0;
-      const transactions = await Transaction.find({ fromUser: userId }).sort({ createdAt: -1 }).limit(10);
-      summary.recentTransactions = transactions;
-    } else {
-      summary.balance = req.user.balance || 0;
-      const transactions = await Transaction.find({ toUser: userId }).sort({ createdAt: -1 }).limit(10);
-      summary.recentTransactions = transactions;
-    }
+    const summary = {
+      balance: req.user.balance || 0,
+    };
+    const transactionQuery = req.user.role === 'client'
+      ? { $or: [{ fromUser: userId }, { toUser: userId }] }
+      : { $or: [{ toUser: userId }, { fromUser: userId }] };
+    const transactions = await Transaction.find(transactionQuery).sort({ createdAt: -1 }).limit(10);
+    summary.recentTransactions = transactions;
 
     res.status(200).json({ summary });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const topUpBalance = async (req, res, next) => {
+  try {
+    const amount = Number(req.body?.amount) || 0;
+
+    if (amount <= 0) {
+      return res.status(400).json({ message: 'A valid top-up amount is required' });
+    }
+
+    const nextBalance = (req.user.balance || 0) + amount;
+    await req.accountModel.findByIdAndUpdate(req.user._id, {
+      $set: { balance: nextBalance },
+    });
+
+    const transaction = await Transaction.create({
+      type: 'deposit',
+      amount,
+      toUser: req.user._id,
+      description: 'Wallet top-up from linked bank account',
+    });
+
+    res.status(200).json({
+      message: 'Top-up successful',
+      transaction,
+      summary: {
+        balance: nextBalance,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const withdrawBalance = async (req, res, next) => {
+  try {
+    const amount = Number(req.body?.amount) || 0;
+
+    if (amount <= 0) {
+      return res.status(400).json({ message: 'A valid withdrawal amount is required' });
+    }
+
+    const currentBalance = req.user.balance || 0;
+    if (currentBalance < amount) {
+      return res.status(400).json({ message: 'Insufficient available balance' });
+    }
+
+    const nextBalance = currentBalance - amount;
+    await req.accountModel.findByIdAndUpdate(req.user._id, {
+      $set: { balance: nextBalance },
+    });
+
+    const transaction = await Transaction.create({
+      type: 'withdrawal',
+      amount,
+      fromUser: req.user._id,
+      description: 'Withdrawal to linked bank account',
+    });
+
+    res.status(200).json({
+      message: 'Withdrawal successful',
+      transaction,
+      summary: {
+        balance: nextBalance,
+      },
+    });
   } catch (error) {
     next(error);
   }

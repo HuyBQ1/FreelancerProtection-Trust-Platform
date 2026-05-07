@@ -1,19 +1,35 @@
 import { ArrowLeft, BriefcaseBusiness, Plus, Sparkles } from 'lucide-react';
-import { useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useEffect, useMemo, useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import SectionCard from '../components/SectionCard';
 import Sidebar from '../components/Sidebar';
 import Topbar from '../components/Topbar';
-import { sidebarItems } from '../data/mockData';
+import { sidebarItems } from '../data/appData';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
 const TOKEN_KEY = 'fptp_token';
-const LOCAL_CLIENT_JOBS_KEY = 'fptp_client_jobs';
 
 const jobCategories = ['Design', 'Development', 'Security', 'Legal'];
 const experienceLevels = ['Entry', 'Intermediate', 'Senior', 'Expert'];
 const engagementTypes = ['Fixed price', 'Hourly', 'Retainer'];
 const locationTypes = ['Remote', 'Hybrid', 'On-site'];
+
+const defaultJobForm = {
+  title: '',
+  category: 'Design',
+  budget: '',
+  experienceLevel: 'Senior',
+  timeline: '',
+  locationType: 'Remote',
+  engagementType: 'Fixed price',
+  scopeSummary: '',
+  skills: '',
+  description: '',
+  milestones: [
+    { title: 'Kickoff and scope alignment', amount: '', dueDate: '', description: '' },
+    { title: 'Final delivery and approval', amount: '', dueDate: '', description: '' },
+  ],
+};
 
 const labels = {
   Dashboard: 'Dashboard',
@@ -30,41 +46,15 @@ const labels = {
   balanceDesc: 'Reserved across your active supplier contracts.',
 };
 
-function isMockToken(token) {
-  return typeof token === 'string' && token.startsWith('mock-');
-}
-
-function readLocalJobs() {
-  try {
-    const raw = localStorage.getItem(LOCAL_CLIENT_JOBS_KEY);
-    const parsed = JSON.parse(raw || '[]');
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
-}
-
-function writeLocalJobs(jobs) {
-  localStorage.setItem(LOCAL_CLIENT_JOBS_KEY, JSON.stringify(jobs));
-}
-
 function AddJob() {
   const navigate = useNavigate();
+  const { jobId } = useParams();
+  const isEditMode = Boolean(jobId);
   const [user, setUser] = useState(JSON.parse(localStorage.getItem('fptp_user') || '{}'));
   const [jobSaving, setJobSaving] = useState(false);
+  const [jobLoading, setJobLoading] = useState(isEditMode);
   const [jobStatus, setJobStatus] = useState({ type: '', message: '' });
-  const [jobForm, setJobForm] = useState({
-    title: '',
-    category: 'Design',
-    budget: '',
-    experienceLevel: 'Senior',
-    timeline: '',
-    locationType: 'Remote',
-    engagementType: 'Fixed price',
-    scopeSummary: '',
-    skills: '',
-    description: '',
-  });
+  const [jobForm, setJobForm] = useState(defaultJobForm);
 
   const quickTips = useMemo(
     () => [
@@ -89,19 +79,69 @@ function AddJob() {
   };
 
   const resetForm = () => {
-    setJobForm({
-      title: '',
-      category: 'Design',
-      budget: '',
-      experienceLevel: 'Senior',
-      timeline: '',
-      locationType: 'Remote',
-      engagementType: 'Fixed price',
-      scopeSummary: '',
-      skills: '',
-      description: '',
-    });
+    setJobForm(defaultJobForm);
   };
+
+  useEffect(() => {
+    if (!isEditMode) {
+      setJobLoading(false);
+      return;
+    }
+
+    const fetchJobForEdit = async () => {
+      const token = localStorage.getItem(TOKEN_KEY);
+
+      if (!token) {
+        navigate('/login', { replace: true });
+        return;
+      }
+
+      setJobLoading(true);
+      setJobStatus({ type: '', message: '' });
+
+      try {
+        const response = await fetch(`${API_BASE_URL}/jobs/${jobId}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const data = await response.json().catch(() => ({}));
+
+        if (!response.ok) {
+          throw new Error(data.message || 'Could not load this job post.');
+        }
+
+        const job = data.job || {};
+        setJobForm({
+          title: job.title || '',
+          category: job.category || 'Design',
+          budget: job.budget || '',
+          experienceLevel: job.experienceLevel || 'Senior',
+          timeline: job.timeline || '',
+          locationType: job.locationType || 'Remote',
+          engagementType: job.engagementType || 'Fixed price',
+          scopeSummary: job.scopeSummary || '',
+          skills: Array.isArray(job.skills) ? job.skills.join(', ') : '',
+          description: job.description || '',
+          milestones: Array.isArray(job.milestones) && job.milestones.length > 0
+            ? job.milestones.map((milestone) => ({
+              title: milestone.title || '',
+              amount: milestone.amount || '',
+              dueDate: milestone.dueDate || '',
+              description: milestone.description || '',
+            }))
+            : defaultJobForm.milestones,
+        });
+      } catch (error) {
+        setJobStatus({
+          type: 'error',
+          message: error instanceof Error ? error.message : 'Could not load this job post.',
+        });
+      } finally {
+        setJobLoading(false);
+      }
+    };
+
+    fetchJobForEdit();
+  }, [isEditMode, jobId, navigate]);
 
   const handleLanguageChange = (language) => {
     const nextUser = {
@@ -135,50 +175,40 @@ function AddJob() {
       return;
     }
 
-    const token = localStorage.getItem(TOKEN_KEY);
-    const nextLocalJob = {
-      id: `local-job-${Date.now()}`,
-      title: jobForm.title.trim(),
-      category: jobForm.category.trim(),
-      budget: jobForm.budget.trim(),
-      experienceLevel: jobForm.experienceLevel.trim(),
-      timeline: jobForm.timeline.trim(),
-      locationType: jobForm.locationType.trim(),
-      engagementType: jobForm.engagementType.trim(),
-      scopeSummary: jobForm.scopeSummary.trim(),
-      skills: jobForm.skills.split(',').map((skill) => skill.trim()).filter(Boolean),
-      description: jobForm.description.trim(),
-      client: user?.companyName || user?.fullName || user?.email || 'Client',
-      status: 'open',
-      source: 'local',
-    };
+    const normalizedMilestones = jobForm.milestones
+      .map((milestone) => ({
+        title: milestone.title.trim(),
+        amount: milestone.amount.trim(),
+        dueDate: milestone.dueDate.trim(),
+        description: milestone.description.trim(),
+      }))
+      .filter((milestone) => milestone.title && milestone.amount);
 
-    if (!token || isMockToken(token)) {
-      const nextJobs = [nextLocalJob, ...readLocalJobs()];
-      writeLocalJobs(nextJobs);
-      resetForm();
-      navigate('/client-dashboard', {
-        state: {
-          initialPage: 'marketplace',
-          jobStatus: {
-            type: 'success',
-            message: 'Job created in demo mode and added to your job list.',
-          },
-        },
-      });
+    if (normalizedMilestones.length === 0) {
+      setJobStatus({ type: 'error', message: 'Please add at least one milestone with a title and payment amount.' });
+      return;
+    }
+
+    const token = localStorage.getItem(TOKEN_KEY);
+
+    if (!token) {
+      navigate('/login', { replace: true });
       return;
     }
 
     setJobSaving(true);
 
     try {
-      const res = await fetch(`${API_BASE_URL}/jobs`, {
-        method: 'POST',
+      const res = await fetch(isEditMode ? `${API_BASE_URL}/jobs/${jobId}` : `${API_BASE_URL}/jobs`, {
+        method: isEditMode ? 'PUT' : 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify(jobForm),
+        body: JSON.stringify({
+          ...jobForm,
+          milestones: normalizedMilestones,
+        }),
       });
 
       const data = await res.json().catch(() => ({}));
@@ -187,16 +217,16 @@ function AddJob() {
         throw new Error(data.message || 'Could not create job.');
       }
 
-      const createdJob = data.job ? [data.job, ...readLocalJobs().filter((job) => job.id !== data.job.id)] : readLocalJobs();
-      writeLocalJobs(createdJob);
-      resetForm();
+      if (!isEditMode) {
+        resetForm();
+      }
 
       navigate('/client-dashboard', {
         state: {
           initialPage: 'marketplace',
           jobStatus: {
             type: 'success',
-            message: 'Job created successfully.',
+            message: isEditMode ? 'Job post updated successfully.' : 'Job created successfully.',
           },
         },
       });
@@ -210,14 +240,40 @@ function AddJob() {
     }
   };
 
+  const updateMilestoneField = (index, field, value) => {
+    setJobForm((current) => ({
+      ...current,
+      milestones: current.milestones.map((milestone, milestoneIndex) => (
+        milestoneIndex === index ? { ...milestone, [field]: value } : milestone
+      )),
+    }));
+  };
+
+  const addMilestone = () => {
+    setJobForm((current) => ({
+      ...current,
+      milestones: [
+        ...current.milestones,
+        { title: '', amount: '', dueDate: '', description: '' },
+      ],
+    }));
+  };
+
+  const removeMilestone = (index) => {
+    setJobForm((current) => ({
+      ...current,
+      milestones: current.milestones.filter((_, milestoneIndex) => milestoneIndex !== index),
+    }));
+  };
+
   return (
     <div className="min-h-screen bg-slate-100/80">
       <div className="mx-auto flex w-full max-w-[1680px] gap-6 px-4 py-4 sm:px-6 xl:px-8">
         <Sidebar items={sidebarItems} activePage="marketplace" onNavigate={routeToClientDashboard} labels={labels} />
         <div className="min-w-0 flex-1 space-y-6">
           <Topbar
-            title="Add Job"
-            subtitle="Create a dedicated hiring brief for your client workspace"
+            title={isEditMode ? 'Edit Job' : 'Add Job'}
+            subtitle={isEditMode ? 'Update your hiring brief after negotiation' : 'Create a dedicated hiring brief for your client workspace'}
             onLogout={logout}
             onOpenSettings={() => routeToClientDashboard('settings')}
             onOpenBankSettings={() => routeToClientDashboard('bank')}
@@ -244,9 +300,11 @@ function AddJob() {
                 <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.12),transparent_28%),radial-gradient(circle_at_bottom_left,rgba(20,184,166,0.18),transparent_34%)]" />
                 <div className="relative">
                   <span className="rounded-full bg-white/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-white/70">
-                    Client hiring brief
+                    {isEditMode ? 'Client brief editor' : 'Client hiring brief'}
                   </span>
-                  <h1 className="mt-5 max-w-2xl text-4xl font-bold tracking-tight">Create a richer job post for freelancers</h1>
+                  <h1 className="mt-5 max-w-2xl text-4xl font-bold tracking-tight">
+                    {isEditMode ? 'Edit your job post after the deal discussion' : 'Create a richer job post for freelancers'}
+                  </h1>
                   <p className="mt-4 max-w-2xl text-sm leading-7 text-white/75">
                     Turn a vague request into a serious brief with budget, scope, skills, and delivery expectations that good freelancers can trust.
                   </p>
@@ -302,6 +360,11 @@ function AddJob() {
                 </div>
               </div>
 
+              {jobLoading ? (
+                <div className="mt-8 rounded-3xl border border-slate-200 bg-slate-50 p-6 text-sm font-semibold text-slate-500">
+                  Loading job post from database...
+                </div>
+              ) : (
               <form onSubmit={handleCreateJob} className="mt-8 space-y-8">
                 <div className="space-y-4">
                   <div>
@@ -385,6 +448,81 @@ function AddJob() {
                   </label>
                 </div>
 
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">Milestones</p>
+                      <p className="mt-1 text-sm text-slate-500">Define payment stages so freelancers know exactly how delivery and approval will work.</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={addMilestone}
+                      className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
+                    >
+                      <Plus className="h-4 w-4" />
+                      Add milestone
+                    </button>
+                  </div>
+                  <div className="space-y-4">
+                    {jobForm.milestones.map((milestone, index) => (
+                      <div key={`milestone-${index}`} className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
+                        <div className="flex items-center justify-between gap-3">
+                          <p className="text-sm font-semibold text-ink">Milestone {index + 1}</p>
+                          {jobForm.milestones.length > 1 ? (
+                            <button
+                              type="button"
+                              onClick={() => removeMilestone(index)}
+                              className="text-sm font-semibold text-rose-600 transition hover:text-rose-700"
+                            >
+                              Remove
+                            </button>
+                          ) : null}
+                        </div>
+                        <div className="mt-4 grid gap-4 md:grid-cols-2">
+                          <label className="space-y-2">
+                            <span className="text-sm font-medium text-slate-700">Milestone title</span>
+                            <input
+                              value={milestone.title}
+                              onChange={(event) => updateMilestoneField(index, 'title', event.target.value)}
+                              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 outline-none transition focus:border-slate-400"
+                              placeholder="Discovery and wireframes"
+                            />
+                          </label>
+                          <label className="space-y-2">
+                            <span className="text-sm font-medium text-slate-700">Payment amount</span>
+                            <input
+                              value={milestone.amount}
+                              onChange={(event) => updateMilestoneField(index, 'amount', event.target.value)}
+                              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 outline-none transition focus:border-slate-400"
+                              placeholder="$1,200"
+                            />
+                          </label>
+                        </div>
+                        <div className="mt-4 grid gap-4 md:grid-cols-2">
+                          <label className="space-y-2">
+                            <span className="text-sm font-medium text-slate-700">Due date</span>
+                            <input
+                              value={milestone.dueDate}
+                              onChange={(event) => updateMilestoneField(index, 'dueDate', event.target.value)}
+                              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 outline-none transition focus:border-slate-400"
+                              placeholder="May 20, 2026"
+                            />
+                          </label>
+                          <label className="space-y-2">
+                            <span className="text-sm font-medium text-slate-700">Approval note</span>
+                            <input
+                              value={milestone.description}
+                              onChange={(event) => updateMilestoneField(index, 'description', event.target.value)}
+                              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 outline-none transition focus:border-slate-400"
+                              placeholder="What should be reviewed at this stage?"
+                            />
+                          </label>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
                 {jobStatus.message ? (
                   <p className={`rounded-2xl px-4 py-3 text-sm ${jobStatus.type === 'error' ? 'bg-rose-50 text-rose-700' : 'bg-emerald-50 text-emerald-700'}`}>
                     {jobStatus.message}
@@ -393,9 +531,10 @@ function AddJob() {
 
                 <button type="submit" disabled={jobSaving} className="inline-flex items-center gap-2 rounded-2xl bg-pine px-5 py-3 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60">
                   <BriefcaseBusiness className="h-4 w-4" />
-                  {jobSaving ? 'Creating...' : 'Create Job'}
+                  {jobSaving ? (isEditMode ? 'Saving...' : 'Creating...') : (isEditMode ? 'Save Job Changes' : 'Create Job')}
                 </button>
               </form>
+              )}
             </SectionCard>
 
             <div className="space-y-6 xl:sticky xl:top-4">
@@ -426,6 +565,21 @@ function AddJob() {
                         {chip}
                       </span>
                     ))}
+                  </div>
+
+                  <div className="mt-6 space-y-3">
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/55">Milestone plan</p>
+                    {jobForm.milestones
+                      .filter((milestone) => milestone.title.trim() || milestone.amount.trim())
+                      .map((milestone, index) => (
+                        <div key={`preview-${index}`} className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
+                          <div className="flex items-center justify-between gap-3">
+                            <p className="text-sm font-semibold text-white">{milestone.title.trim() || `Milestone ${index + 1}`}</p>
+                            <span className="text-xs font-semibold text-white/70">{milestone.amount.trim() || 'Set amount'}</span>
+                          </div>
+                          <p className="mt-2 text-xs leading-6 text-white/70">{milestone.description.trim() || milestone.dueDate.trim() || 'Add a due date or approval note for this stage.'}</p>
+                        </div>
+                      ))}
                   </div>
                 </div>
               </SectionCard>

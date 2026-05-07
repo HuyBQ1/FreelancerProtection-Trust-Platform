@@ -21,6 +21,7 @@ function App() {
         <Route element={<ProtectedRoute allowedRole="client" />}>
           <Route path="/client-dashboard" element={<ClientDashboard />} />
           <Route path="/client-jobs/new" element={<AddJob />} />
+          <Route path="/client-jobs/:jobId/edit" element={<AddJob />} />
           <Route path="/client-jobs/:jobId" element={<JobDetails />} />
           <Route path="/freelancer-profile/:profileId" element={<FreelancerProfile />} />
         </Route>

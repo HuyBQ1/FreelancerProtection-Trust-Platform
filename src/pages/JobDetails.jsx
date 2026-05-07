@@ -1,45 +1,13 @@
-import { ArrowLeft, BriefcaseBusiness, Clock3, MapPin, Shield, UserRound, Wallet } from 'lucide-react';
+import { ArrowLeft, BriefcaseBusiness, Clock3, MapPin, PencilLine, Shield, UserRound, Wallet } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import SectionCard from '../components/SectionCard';
 import Sidebar from '../components/Sidebar';
 import Topbar from '../components/Topbar';
-import { jobs, sidebarItems } from '../data/mockData';
+import { sidebarItems } from '../data/appData';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-const LOCAL_CLIENT_JOBS_KEY = 'fptp_client_jobs';
+const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
 const TOKEN_KEY = 'fptp_token';
-
-function readLocalJobs() {
-  try {
-    const raw = localStorage.getItem(LOCAL_CLIENT_JOBS_KEY);
-    const parsed = JSON.parse(raw || '[]');
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
-}
-
-function fallbackJobs() {
-  return jobs.map((job, index) => ({
-    id: `mock-job-${index + 1}`,
-    title: job.title.en,
-    budget: job.budget,
-    client: job.client,
-    clientId: '',
-    category: job.category.en,
-    description: job.description.en,
-    experienceLevel: '',
-    timeline: '',
-    locationType: '',
-    engagementType: '',
-    scopeSummary: '',
-    skills: [],
-    status: 'open',
-    assignedFreelancerName: job.assignedFreelancerName || '',
-    assignedFreelancerRole: job.assignedFreelancerRole || '',
-  }));
-}
 
 function JobDetails() {
   const navigate = useNavigate();
@@ -88,16 +56,15 @@ function JobDetails() {
         const data = await res.json().catch(() => ({}));
 
         if (!res.ok) {
-          setJobList([...readLocalJobs(), ...fallbackJobs()]);
+          setJobList([]);
           return;
         }
 
         const apiJobs = Array.isArray(data.jobs) ? data.jobs : [];
-        const merged = [...apiJobs, ...readLocalJobs()];
-        setJobList(merged.length > 0 ? merged : fallbackJobs());
+        setJobList(apiJobs);
       } catch (error) {
         console.error('Failed to fetch jobs:', error);
-        setJobList([...readLocalJobs(), ...fallbackJobs()]);
+        setJobList([]);
       } finally {
         setLoading(false);
       }
@@ -144,11 +111,13 @@ function JobDetails() {
         counterpartyId: selectedJob.assignedFreelancerId || undefined,
         counterpartyRole: selectedJob.assignedFreelancerRole || 'freelancer',
         contract: selectedJob.title,
+        jobId: selectedJob.id,
       }
       : {
         counterpartyId: selectedJob.clientId || undefined,
         counterpartyRole: 'client',
         contract: selectedJob.title,
+        jobId: selectedJob.id,
       };
 
     setContacting(true);
@@ -189,6 +158,7 @@ function JobDetails() {
   const canContact = role === 'freelancer'
     ? Boolean(selectedJob?.client)
     : Boolean(selectedJob?.assignedFreelancerId || selectedJob?.assignedFreelancerName || selectedJob?.assignedFreelancerRole);
+  const canEditJob = role === 'client' && String(selectedJob?.clientId || '') === String(user?.id || '');
 
   const handleAcceptJob = async () => {
     const token = localStorage.getItem(TOKEN_KEY);
@@ -218,6 +188,7 @@ function JobDetails() {
         state: {
           initialPage: 'contracts',
           initialContractId: `job-contract-${data.job?.id || selectedJob.id}`,
+          acceptedJob: data.job || null,
         },
       });
     } catch (error) {
@@ -320,6 +291,16 @@ function JobDetails() {
                       </div>
                     </div>
                     <div className="mt-6 flex flex-wrap gap-3">
+                      {canEditJob ? (
+                        <button
+                          type="button"
+                          onClick={() => navigate(`/client-jobs/${selectedJob.id}/edit`)}
+                          className="inline-flex flex-1 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
+                        >
+                          <PencilLine className="h-4 w-4" />
+                          Edit Job Post
+                        </button>
+                      ) : null}
                       {canContact ? (
                         <button
                           type="button"
@@ -404,6 +385,27 @@ function JobDetails() {
                       ))}
                     </div>
                   </SectionCard>
+
+                  {selectedJob.milestones?.length ? (
+                    <SectionCard className="p-6">
+                      <p className="muted">Payment plan</p>
+                      <h2 className="mt-1 text-2xl font-bold text-ink">Milestones</h2>
+                      <div className="mt-6 space-y-3">
+                        {selectedJob.milestones.map((milestone, index) => (
+                          <div key={`${milestone.title}-${index}`} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                              <p className="font-semibold text-ink">{milestone.title}</p>
+                              <span className="text-sm font-semibold text-slate-700">{milestone.amount}</span>
+                            </div>
+                            <p className="mt-2 text-sm text-slate-500">{milestone.dueDate || 'Flexible due date'}</p>
+                            {milestone.description ? (
+                              <p className="mt-2 text-sm leading-6 text-slate-500">{milestone.description}</p>
+                            ) : null}
+                          </div>
+                        ))}
+                      </div>
+                    </SectionCard>
+                  ) : null}
                 </div>
               </div>
             </div>

@@ -56,12 +56,68 @@ const messageSchema = new mongoose.Schema(
   { timestamps: true },
 );
 
+const dealSchema = new mongoose.Schema(
+  {
+    amount: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+    currency: {
+      type: String,
+      trim: true,
+      default: 'USD',
+    },
+    status: {
+      type: String,
+      enum: ['none', 'proposed', 'accepted'],
+      default: 'none',
+    },
+    note: {
+      type: String,
+      trim: true,
+      default: '',
+    },
+    milestoneIndex: {
+      type: Number,
+      default: null,
+    },
+    milestoneTitle: {
+      type: String,
+      trim: true,
+      default: '',
+    },
+    proposedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      default: null,
+    },
+    acceptedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      default: null,
+    },
+    updatedByRole: {
+      type: String,
+      enum: ['', 'client', 'freelancer', 'admin'],
+      default: '',
+    },
+    updatedAt: {
+      type: Date,
+      default: null,
+    },
+  },
+  { _id: false },
+);
+
 const chatThreadSchema = new mongoose.Schema(
   {
     contract: {
       type: String,
       trim: true,
       default: 'General discussion',
+    },
+    jobId: {
+      type: mongoose.Schema.Types.ObjectId,
+      default: null,
     },
     participants: {
       type: [participantSchema],
@@ -75,6 +131,10 @@ const chatThreadSchema = new mongoose.Schema(
     messages: {
       type: [messageSchema],
       default: [],
+    },
+    deal: {
+      type: dealSchema,
+      default: () => ({ status: 'none' }),
     },
   },
   {
