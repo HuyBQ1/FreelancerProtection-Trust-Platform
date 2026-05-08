@@ -5,6 +5,7 @@ import jobRoutes from './jobRoutes.js';
 import userRoutes from './userRoutes.js';
 import escrowRoutes from './escrowRoutes.js';
 import adminRoutes from './adminRoutes.js';
+import notificationRoutes from './notificationRoutes.js';
 
 const router = Router();
 
@@ -14,5 +15,6 @@ router.use('/jobs', jobRoutes);
 router.use('/users', userRoutes);
 router.use('/escrow', escrowRoutes);
 router.use('/admin', adminRoutes);
+router.use('/notifications', notificationRoutes);
 
 export default router;

@@ -23,8 +23,16 @@ const transactionSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Contract',
     },
+    jobId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Job',
+    },
     milestoneId: {
       type: mongoose.Schema.Types.ObjectId,
+    },
+    milestoneIndex: {
+      type: Number,
+      default: null,
     },
     description: {
       type: String,

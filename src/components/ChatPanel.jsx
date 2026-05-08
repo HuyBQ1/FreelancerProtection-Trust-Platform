@@ -7,7 +7,9 @@ import SectionCard from './SectionCard';
 const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
 const THREADS_URL = `${API_BASE_URL}/chat/threads`;
 const TOKEN_KEY = 'fptp_token';
-const SOCKET_URL = API_BASE_URL.replace(/\/api$/, '');
+const SOCKET_URL = API_BASE_URL.startsWith('http')
+  ? API_BASE_URL.replace(/\/api$/, '')
+  : (import.meta.env.DEV ? 'http://localhost:5000' : window.location.origin);
 
 function isJobCompleted(job) {
   const milestones = Array.isArray(job?.contractState?.milestones)
@@ -31,6 +33,7 @@ function ChatPanel({ currentUser, userName, initialThreadId = '', onDealUpdated 
   const [dealAmount, setDealAmount] = useState('');
   const [dealMilestoneIndex, setDealMilestoneIndex] = useState('');
   const [selectedDealJobId, setSelectedDealJobId] = useState('');
+  const [dealPanelOpen, setDealPanelOpen] = useState(false);
   const [dealSaving, setDealSaving] = useState(false);
   const [dealJobs, setDealJobs] = useState([]);
   const [relatedJobDetails, setRelatedJobDetails] = useState(null);
@@ -442,6 +445,7 @@ function ChatPanel({ currentUser, userName, initialThreadId = '', onDealUpdated 
           onDealUpdated(jobData.job);
         }
       }
+      setDealPanelOpen(false);
       setStatus({ type: 'success', message: 'Successfully.' });
     } catch (error) {
       setStatus({
@@ -473,8 +477,8 @@ function ChatPanel({ currentUser, userName, initialThreadId = '', onDealUpdated 
   }
 
   return (
-    <div className="grid gap-6 2xl:grid-cols-[360px_minmax(0,1fr)]">
-      <SectionCard className="p-5">
+    <div className="grid h-[calc(100vh-220px)] min-h-[520px] gap-6 overflow-hidden 2xl:grid-cols-[360px_minmax(0,1fr)]">
+      <SectionCard className="flex min-h-0 flex-col overflow-hidden p-5">
         <div className="flex items-center justify-between gap-3">
           <div>
             <p className="muted">Direct chat</p>
@@ -511,7 +515,7 @@ function ChatPanel({ currentUser, userName, initialThreadId = '', onDealUpdated 
           </p>
         ) : null}
 
-        <div className="mt-5 space-y-3">
+        <div className="mt-5 min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">
           {visibleThreads.map((thread) => (
             <button
               key={thread.id}
@@ -551,10 +555,10 @@ function ChatPanel({ currentUser, userName, initialThreadId = '', onDealUpdated 
         </div>
       </SectionCard>
 
-      <SectionCard className="flex min-h-[680px] flex-col p-0">
+      <SectionCard className="flex min-h-0 flex-col overflow-hidden p-0">
         {selectedThread ? (
           <>
-            <div className="flex items-center justify-between border-b border-slate-200 px-6 py-5">
+            <div className="shrink-0 flex items-center justify-between border-b border-slate-200 px-6 py-5">
               <div>
                 <p className="text-xl font-bold text-ink">{selectedThread.participant}</p>
                 <p className="mt-1 text-sm text-slate-500">{selectedThread.contract}</p>
@@ -573,146 +577,7 @@ function ChatPanel({ currentUser, userName, initialThreadId = '', onDealUpdated 
               </button>
             </div>
 
-            <div className="border-b border-slate-200 bg-slate-50/70 px-6 py-5">
-              <div className="min-h-[238px] space-y-4">
-                <div className="min-w-0">
-                  <div className="flex flex-wrap items-center gap-3">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-700">
-                      <DollarSign className="h-5 w-5" />
-                    </div>
-                    <div>
-                      <p className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">Deal price</p>
-                      <h3 className="text-xl font-bold text-ink">
-                        {dealLocked ? 'Deal locked for completed job' : dealStatus === 'accepted' ? 'Price accepted by client' : dealStatus === 'proposed' ? 'Price under negotiation' : 'No price proposed yet'}
-                      </h3>
-                    </div>
-                    <span className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                      dealLocked
-                        ? 'bg-slate-200 text-slate-600'
-                        : dealStatus === 'accepted'
-                        ? 'bg-emerald-100 text-emerald-700'
-                        : dealStatus === 'proposed'
-                          ? 'bg-amber-100 text-amber-700'
-                          : 'bg-slate-100 text-slate-600'
-                    }`}>
-                      {dealLocked ? 'locked' : dealStatus}
-                    </span>
-                  </div>
-
-                  <p className={`mt-4 min-h-[46px] rounded-2xl border px-4 py-3 text-sm font-semibold transition ${
-                    dealLocked
-                      ? 'border-slate-200 bg-white text-slate-600 opacity-100'
-                      : 'border-transparent bg-transparent text-transparent opacity-0'
-                  }`}>
-                    This job is completed, so the milestone price can no longer be negotiated.
-                  </p>
-
-                  <div className="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-[240px_180px_260px]">
-                    <label className="block min-w-0">
-                      <span className="block whitespace-nowrap text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">Job / Project</span>
-                      <select
-                        value={activeDealJobId}
-                        onChange={(event) => {
-                          setSelectedDealJobId(event.target.value);
-                          setDealAmount('');
-                          setDealMilestoneIndex('');
-                        }}
-                        disabled={dealJobOptions.length === 0}
-                        className="mt-2 h-13 w-full truncate rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-slate-400 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
-                      >
-                        <option value="">{dealJobOptions.length ? 'Select job to deal' : 'No available jobs'}</option>
-                        {dealJobOptions.map((job) => (
-                          <option key={job.id} value={job.id}>
-                            {job.title} {job.status ? `- ${job.status}` : ''}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <label className="block min-w-0">
-                      <span className="block whitespace-nowrap text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">Amount</span>
-                      <div className="mt-2 flex h-13 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3">
-                        <span className="font-bold text-slate-400">$</span>
-                        <input
-                          type="number"
-                          min="1"
-                          value={dealAmount}
-                          onChange={(event) => setDealAmount(event.target.value)}
-                          disabled={dealLocked || (!isClient && !isFreelancer)}
-                          placeholder="1200"
-                          className="w-full bg-transparent text-sm font-semibold text-slate-900 outline-none placeholder:text-slate-400"
-                        />
-                      </div>
-                    </label>
-                    <label className="block min-w-0">
-                      <span className="block whitespace-nowrap text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">Milestone</span>
-                      <select
-                        value={dealMilestoneIndex}
-                        onChange={(event) => setDealMilestoneIndex(event.target.value)}
-                        disabled={dealLocked || (!isClient && !isFreelancer) || relatedMilestones.length === 0}
-                        className="mt-2 h-13 w-full truncate rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-slate-400 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
-                      >
-                        <option value="">{relatedMilestones.length ? 'Select milestone' : 'No linked milestones'}</option>
-                        {relatedMilestones.map((milestone, index) => (
-                          <option key={`${milestone.title}-${index}`} value={`${index}`}>
-                            {milestone.title || `Milestone ${index + 1}`} {milestone.amount ? `(${milestone.amount})` : ''}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                  </div>
-                </div>
-
-                <div className="flex flex-wrap items-center gap-2">
-                  {isFreelancer && !dealLocked ? (
-                    <button
-                      type="button"
-                      onClick={() => handleDealAction('propose')}
-                      disabled={dealSaving}
-                      className="inline-flex items-center gap-2 rounded-2xl bg-ink px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                      <DollarSign className="h-4 w-4" />
-                      {dealStatus === 'proposed' || dealStatus === 'accepted' ? 'Update proposal' : 'Send price'}
-                    </button>
-                  ) : null}
-                  {isClient && !dealLocked ? (
-                    <>
-                      {relatedJob?.id ? (
-                        <button
-                          type="button"
-                          onClick={() => navigate(`/client-jobs/${relatedJob.id}/edit`)}
-                          className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-                        >
-                          <PencilLine className="h-4 w-4" />
-                          Edit job post
-                        </button>
-                      ) : null}
-                      <button
-                        type="button"
-                        onClick={() => handleDealAction(dealStatus === 'accepted' ? 'update' : 'accept')}
-                        disabled={dealSaving}
-                        className="inline-flex items-center gap-2 rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
-                      >
-                        {dealStatus === 'accepted' ? <PencilLine className="h-4 w-4" /> : <CheckCircle2 className="h-4 w-4" />}
-                        {dealStatus === 'accepted' ? 'Edit accepted price' : 'Accept price'}
-                      </button>
-                      {dealStatus !== 'accepted' ? (
-                        <button
-                          type="button"
-                          onClick={() => handleDealAction('update')}
-                          disabled={dealSaving}
-                          className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
-                        >
-                          <PencilLine className="h-4 w-4" />
-                          Counter price
-                        </button>
-                      ) : null}
-                    </>
-                  ) : null}
-                </div>
-              </div>
-            </div>
-
-            <div className="flex-1 space-y-5 overflow-auto bg-[linear-gradient(180deg,rgba(248,250,252,0.65),rgba(255,255,255,0.92))] px-6 py-6">
+            <div className="min-h-0 flex-1 space-y-5 overflow-y-auto bg-[linear-gradient(180deg,rgba(248,250,252,0.65),rgba(255,255,255,0.92))] px-6 py-6">
               {selectedThread.messages.map((message) => {
                 const mine = message.senderId && currentUser?.id
                   ? String(message.senderId) === String(currentUser.id)
@@ -747,20 +612,177 @@ function ChatPanel({ currentUser, userName, initialThreadId = '', onDealUpdated 
               })}
             </div>
 
-            <div className="border-t border-slate-200 px-6 py-5">
-              <div className="rounded-[28px] border border-slate-200 bg-slate-50 p-3">
+            <div className="shrink-0 border-t border-slate-200 px-6 py-4">
+              <div className="relative rounded-[28px] border border-slate-200 bg-slate-50 p-3">
+                {dealPanelOpen ? (
+                  <div className="absolute bottom-[92px] left-3 z-20 w-[min(720px,calc(100vw-3rem))] rounded-[28px] border border-slate-200 bg-white p-5 shadow-2xl shadow-slate-900/12">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-700">
+                          <DollarSign className="h-5 w-5" />
+                        </div>
+                        <div>
+                          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Deal price</p>
+                          <h3 className="text-lg font-bold text-ink">
+                            {dealLocked ? 'Deal locked for completed job' : dealStatus === 'accepted' ? 'Price accepted' : dealStatus === 'proposed' ? 'Price under negotiation' : 'Create deal price'}
+                          </h3>
+                        </div>
+                        <span className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                          dealLocked
+                            ? 'bg-slate-200 text-slate-600'
+                            : dealStatus === 'accepted'
+                            ? 'bg-emerald-100 text-emerald-700'
+                            : dealStatus === 'proposed'
+                              ? 'bg-amber-100 text-amber-700'
+                              : 'bg-slate-100 text-slate-600'
+                        }`}>
+                          {dealLocked ? 'locked' : dealStatus}
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setDealPanelOpen(false)}
+                        className="rounded-xl px-3 py-2 text-sm font-semibold text-slate-500 transition hover:bg-slate-100 hover:text-slate-900"
+                      >
+                        Close
+                      </button>
+                    </div>
+
+                    {dealLocked ? (
+                      <p className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-600">
+                        This job is completed, so the milestone price can no longer be negotiated.
+                      </p>
+                    ) : null}
+
+                    <div className="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-[240px_150px_minmax(0,1fr)]">
+                      <label className="block min-w-0">
+                        <span className="block whitespace-nowrap text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">Job / Project</span>
+                        <select
+                          value={activeDealJobId}
+                          onChange={(event) => {
+                            setSelectedDealJobId(event.target.value);
+                            setDealAmount('');
+                            setDealMilestoneIndex('');
+                          }}
+                          disabled={dealJobOptions.length === 0}
+                          className="mt-2 h-12 w-full truncate rounded-2xl border border-slate-200 bg-white px-4 text-sm outline-none transition focus:border-slate-400 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
+                        >
+                          <option value="">{dealJobOptions.length ? 'Select job to deal' : 'No available jobs'}</option>
+                          {dealJobOptions.map((job) => (
+                            <option key={job.id} value={job.id}>
+                              {job.title} {job.status ? `- ${job.status}` : ''}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <label className="block min-w-0">
+                        <span className="block whitespace-nowrap text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">Amount</span>
+                        <div className="mt-2 flex h-12 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4">
+                          <span className="font-bold text-slate-400">$</span>
+                          <input
+                            type="number"
+                            min="1"
+                            value={dealAmount}
+                            onChange={(event) => setDealAmount(event.target.value)}
+                            disabled={dealLocked || (!isClient && !isFreelancer)}
+                            placeholder="1200"
+                            className="w-full bg-transparent text-sm font-semibold text-slate-900 outline-none placeholder:text-slate-400"
+                          />
+                        </div>
+                      </label>
+                      <label className="block min-w-0">
+                        <span className="block whitespace-nowrap text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">Milestone</span>
+                        <select
+                          value={dealMilestoneIndex}
+                          onChange={(event) => setDealMilestoneIndex(event.target.value)}
+                          disabled={dealLocked || (!isClient && !isFreelancer) || relatedMilestones.length === 0}
+                          className="mt-2 h-12 w-full truncate rounded-2xl border border-slate-200 bg-white px-4 text-sm outline-none transition focus:border-slate-400 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
+                        >
+                          <option value="">{relatedMilestones.length ? 'Select milestone' : 'No linked milestones'}</option>
+                          {relatedMilestones.map((milestone, index) => (
+                            <option key={`${milestone.title}-${index}`} value={`${index}`}>
+                              {milestone.title || `Milestone ${index + 1}`} {milestone.amount ? `(${milestone.amount})` : ''}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    </div>
+
+                    <div className="mt-4 flex flex-wrap items-center gap-2">
+                      {isFreelancer && !dealLocked ? (
+                        <button
+                          type="button"
+                          onClick={() => handleDealAction('propose')}
+                          disabled={dealSaving}
+                          className="inline-flex items-center gap-2 rounded-2xl bg-ink px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          <DollarSign className="h-4 w-4" />
+                          {dealStatus === 'proposed' || dealStatus === 'accepted' ? 'Update proposal' : 'Send price'}
+                        </button>
+                      ) : null}
+                      {isClient && !dealLocked ? (
+                        <>
+                          {relatedJob?.id ? (
+                            <button
+                              type="button"
+                              onClick={() => navigate(`/client-jobs/${relatedJob.id}/edit`)}
+                              className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                            >
+                              <PencilLine className="h-4 w-4" />
+                              Edit job post
+                            </button>
+                          ) : null}
+                          <button
+                            type="button"
+                            onClick={() => handleDealAction(dealStatus === 'accepted' ? 'update' : 'accept')}
+                            disabled={dealSaving}
+                            className="inline-flex items-center gap-2 rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            {dealStatus === 'accepted' ? <PencilLine className="h-4 w-4" /> : <CheckCircle2 className="h-4 w-4" />}
+                            {dealStatus === 'accepted' ? 'Edit accepted price' : 'Accept price'}
+                          </button>
+                          {dealStatus !== 'accepted' ? (
+                            <button
+                              type="button"
+                              onClick={() => handleDealAction('update')}
+                              disabled={dealSaving}
+                              className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                              <PencilLine className="h-4 w-4" />
+                              Counter price
+                            </button>
+                          ) : null}
+                        </>
+                      ) : null}
+                    </div>
+                  </div>
+                ) : null}
                 <textarea
                   value={draft}
                   onChange={(event) => setDraft(event.target.value)}
-                  rows={3}
+                  rows={2}
                   placeholder="Type a message to the other side..."
                   className="w-full resize-none bg-transparent px-2 py-1 text-sm outline-none placeholder:text-slate-400"
                 />
                 <div className="mt-3 flex items-center justify-between">
-                  <button className="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold text-slate-600 transition hover:bg-white hover:text-slate-900">
-                    <Paperclip className="h-4 w-4" />
-                    Attach file
-                  </button>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button className="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold text-slate-600 transition hover:bg-white hover:text-slate-900">
+                      <Paperclip className="h-4 w-4" />
+                      Attach file
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDealPanelOpen((open) => !open)}
+                      className={`inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold transition ${
+                        dealPanelOpen
+                          ? 'bg-emerald-600 text-white'
+                          : 'text-emerald-700 hover:bg-white'
+                      }`}
+                    >
+                      <DollarSign className="h-4 w-4" />
+                      Deal price
+                    </button>
+                  </div>
                   <button
                     type="button"
                     onClick={handleSend}
@@ -775,7 +797,7 @@ function ChatPanel({ currentUser, userName, initialThreadId = '', onDealUpdated 
             </div>
           </>
         ) : (
-          <div className="flex min-h-[680px] flex-col items-center justify-center px-6 text-center">
+          <div className="flex h-full min-h-0 flex-col items-center justify-center px-6 text-center">
             <p className="muted">Direct chat</p>
             <h2 className="mt-2 text-2xl font-bold text-ink">No conversation selected yet</h2>
             <p className="mt-3 max-w-md text-sm leading-7 text-slate-500">

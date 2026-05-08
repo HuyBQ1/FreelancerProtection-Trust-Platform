@@ -46,6 +46,34 @@ const labels = {
   balanceDesc: 'Reserved across your active supplier contracts.',
 };
 
+function sanitizeMoneyInput(value) {
+  const cleaned = `${value || ''}`.replace(/[^0-9.]/g, '');
+  const [integerPart, ...decimalParts] = cleaned.split('.');
+  const decimalPart = decimalParts.join('').slice(0, 2);
+
+  return decimalParts.length > 0 ? `${integerPart}.${decimalPart}` : integerPart;
+}
+
+function moneyToNumber(value) {
+  const normalized = `${value || ''}`.replace(/[^0-9.]/g, '');
+  const parsed = Number.parseFloat(normalized);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function formatMoneyPreview(value, fallback = 'Set amount') {
+  const amount = moneyToNumber(value);
+
+  if (amount <= 0) {
+    return fallback;
+  }
+
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    maximumFractionDigits: 0,
+  }).format(amount);
+}
+
 function AddJob() {
   const navigate = useNavigate();
   const { jobId } = useParams();
@@ -73,6 +101,13 @@ function AddJob() {
     ],
     [jobForm.engagementType, jobForm.experienceLevel, jobForm.locationType, jobForm.timeline],
   );
+  const budgetAmount = useMemo(() => moneyToNumber(jobForm.budget), [jobForm.budget]);
+  const milestoneTotal = useMemo(
+    () => jobForm.milestones.reduce((sum, milestone) => sum + moneyToNumber(milestone.amount), 0),
+    [jobForm.milestones],
+  );
+  const budgetDifference = budgetAmount - milestoneTotal;
+  const milestoneTotalMatchesBudget = budgetAmount > 0 && Math.abs(budgetDifference) <= 0.01;
 
   const updateJobField = (field, value) => {
     setJobForm((current) => ({ ...current, [field]: value }));
@@ -113,7 +148,7 @@ function AddJob() {
         setJobForm({
           title: job.title || '',
           category: job.category || 'Design',
-          budget: job.budget || '',
+          budget: moneyToNumber(job.budget) > 0 ? `${moneyToNumber(job.budget)}` : '',
           experienceLevel: job.experienceLevel || 'Senior',
           timeline: job.timeline || '',
           locationType: job.locationType || 'Remote',
@@ -124,7 +159,7 @@ function AddJob() {
           milestones: Array.isArray(job.milestones) && job.milestones.length > 0
             ? job.milestones.map((milestone) => ({
               title: milestone.title || '',
-              amount: milestone.amount || '',
+              amount: moneyToNumber(milestone.amount) > 0 ? `${moneyToNumber(milestone.amount)}` : '',
               dueDate: milestone.dueDate || '',
               description: milestone.description || '',
             }))
@@ -175,10 +210,16 @@ function AddJob() {
       return;
     }
 
+    const parsedBudget = moneyToNumber(jobForm.budget);
+    if (parsedBudget <= 0) {
+      setJobStatus({ type: 'error', message: 'Budget must be a number greater than 0.' });
+      return;
+    }
+
     const normalizedMilestones = jobForm.milestones
       .map((milestone) => ({
         title: milestone.title.trim(),
-        amount: milestone.amount.trim(),
+        amount: sanitizeMoneyInput(milestone.amount),
         dueDate: milestone.dueDate.trim(),
         description: milestone.description.trim(),
       }))
@@ -186,6 +227,17 @@ function AddJob() {
 
     if (normalizedMilestones.length === 0) {
       setJobStatus({ type: 'error', message: 'Please add at least one milestone with a title and payment amount.' });
+      return;
+    }
+
+    if (normalizedMilestones.some((milestone) => moneyToNumber(milestone.amount) <= 0)) {
+      setJobStatus({ type: 'error', message: 'Every milestone amount must be a number greater than 0.' });
+      return;
+    }
+
+    const normalizedMilestoneTotal = normalizedMilestones.reduce((sum, milestone) => sum + moneyToNumber(milestone.amount), 0);
+    if (Math.abs(normalizedMilestoneTotal - parsedBudget) > 0.01) {
+      setJobStatus({ type: 'error', message: 'Milestone total must equal the job budget before posting.' });
       return;
     }
 
@@ -207,6 +259,7 @@ function AddJob() {
         },
         body: JSON.stringify({
           ...jobForm,
+          budget: `${parsedBudget}`,
           milestones: normalizedMilestones,
         }),
       });
@@ -241,10 +294,12 @@ function AddJob() {
   };
 
   const updateMilestoneField = (index, field, value) => {
+    const nextValue = field === 'amount' ? sanitizeMoneyInput(value) : value;
+
     setJobForm((current) => ({
       ...current,
       milestones: current.milestones.map((milestone, milestoneIndex) => (
-        milestoneIndex === index ? { ...milestone, [field]: value } : milestone
+        milestoneIndex === index ? { ...milestone, [field]: nextValue } : milestone
       )),
     }));
   };
@@ -393,7 +448,13 @@ function AddJob() {
                   <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
                     <label className="space-y-2">
                       <span className="text-sm font-medium text-slate-700">Budget</span>
-                      <input value={jobForm.budget} onChange={(event) => updateJobField('budget', event.target.value)} className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 outline-none transition focus:border-slate-400" placeholder="$3,500 - $5,000" />
+                      <input
+                        value={jobForm.budget}
+                        onChange={(event) => updateJobField('budget', sanitizeMoneyInput(event.target.value))}
+                        inputMode="decimal"
+                        className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 outline-none transition focus:border-slate-400"
+                        placeholder="6000"
+                      />
                     </label>
                     <label className="space-y-2">
                       <span className="text-sm font-medium text-slate-700">Experience level</span>
@@ -493,8 +554,9 @@ function AddJob() {
                             <input
                               value={milestone.amount}
                               onChange={(event) => updateMilestoneField(index, 'amount', event.target.value)}
+                              inputMode="decimal"
                               className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 outline-none transition focus:border-slate-400"
-                              placeholder="$1,200"
+                              placeholder="1200"
                             />
                           </label>
                         </div>
@@ -520,6 +582,21 @@ function AddJob() {
                         </div>
                       </div>
                     ))}
+                  </div>
+                  <div className={`rounded-2xl border px-4 py-3 text-sm ${
+                    milestoneTotalMatchesBudget
+                      ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                      : 'border-amber-200 bg-amber-50 text-amber-700'
+                  }`}>
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                      <span className="font-semibold">Milestone total: {formatMoneyPreview(`${milestoneTotal}`, '$0')}</span>
+                      <span className="font-semibold">Budget: {formatMoneyPreview(jobForm.budget, '$0')}</span>
+                    </div>
+                    <p className="mt-2">
+                      {milestoneTotalMatchesBudget
+                        ? 'Milestone total matches the job budget.'
+                        : `Milestone total must equal budget before posting. Difference: ${formatMoneyPreview(`${Math.abs(budgetDifference)}`, '$0')}`}
+                    </p>
                   </div>
                 </div>
 
@@ -551,7 +628,7 @@ function AddJob() {
                   <div className="mt-6 grid gap-3 sm:grid-cols-2">
                     <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
                       <p className="text-xs uppercase tracking-[0.18em] text-white/55">Budget</p>
-                      <p className="mt-2 text-lg font-semibold">{jobForm.budget.trim() || 'Set a budget'}</p>
+                      <p className="mt-2 text-lg font-semibold">{formatMoneyPreview(jobForm.budget, 'Set a budget')}</p>
                     </div>
                     <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
                       <p className="text-xs uppercase tracking-[0.18em] text-white/55">Category</p>
@@ -575,7 +652,7 @@ function AddJob() {
                         <div key={`preview-${index}`} className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
                           <div className="flex items-center justify-between gap-3">
                             <p className="text-sm font-semibold text-white">{milestone.title.trim() || `Milestone ${index + 1}`}</p>
-                            <span className="text-xs font-semibold text-white/70">{milestone.amount.trim() || 'Set amount'}</span>
+                            <span className="text-xs font-semibold text-white/70">{formatMoneyPreview(milestone.amount)}</span>
                           </div>
                           <p className="mt-2 text-xs leading-6 text-white/70">{milestone.description.trim() || milestone.dueDate.trim() || 'Add a due date or approval note for this stage.'}</p>
                         </div>

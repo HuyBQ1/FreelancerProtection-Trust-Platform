@@ -1,11 +1,32 @@
 import Job from '../models/Job.js';
 import Transaction from '../models/Transaction.js';
 import { findAccountByIdAndRole } from '../services/accountService.js';
+import { createNotification } from '../services/notificationService.js';
+import { assertClientCanReservePendingPayments, ensurePendingPaymentsForJob } from '../services/pendingPaymentService.js';
 
 function parseBudgetNumber(budget) {
   const normalized = `${budget || ''}`.replace(/[^0-9.]/g, '');
   const parsed = Number.parseFloat(normalized);
   return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function parseStrictMoney(value, fieldLabel) {
+  const rawValue = `${value || ''}`.trim();
+
+  if (!/^\d+(\.\d{1,2})?$/.test(rawValue)) {
+    const error = new Error(`${fieldLabel} must be a number only`);
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const parsed = Number.parseFloat(rawValue);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    const error = new Error(`${fieldLabel} must be greater than 0`);
+    error.statusCode = 400;
+    throw error;
+  }
+
+  return parsed;
 }
 
 function formatCurrency(amount) {
@@ -156,6 +177,59 @@ function normalizeContractState(job) {
   };
 }
 
+async function assertJobHasNoCompletedPayments(job) {
+  const completedPayment = await Transaction.findOne({
+    type: 'release',
+    status: 'completed',
+    jobId: job._id,
+  });
+
+  if (completedPayment) {
+    const error = new Error('This job already has completed payments and cannot be cancelled');
+    error.statusCode = 409;
+    throw error;
+  }
+}
+
+async function refundPendingPaymentsForJob(job) {
+  const pendingTransactions = await Transaction.find({
+    type: 'release',
+    status: 'pending',
+    jobId: job._id,
+    fromUser: job.clientId,
+  });
+  const refundAmount = pendingTransactions.reduce((sum, transaction) => sum + (transaction.amount || 0), 0);
+
+  if (refundAmount > 0) {
+    const { account: clientAccount, model: clientModel } = await findAccountByIdAndRole(job.clientId, 'client');
+
+    if (clientAccount && clientModel) {
+      await clientModel.findByIdAndUpdate(clientAccount._id, {
+        $set: {
+          balance: (clientAccount.balance || 0) + refundAmount,
+        },
+      });
+    }
+  }
+
+  if (pendingTransactions.length > 0) {
+    await Transaction.deleteMany({
+      _id: { $in: pendingTransactions.map((transaction) => transaction._id) },
+    });
+  }
+
+  return refundAmount;
+}
+
+function resetAcceptedJob(job) {
+  job.status = 'open';
+  job.assignedFreelancerId = null;
+  job.assignedFreelancerName = '';
+  job.assignedFreelancerRole = '';
+  job.acceptedAt = null;
+  job.contractState = null;
+}
+
 function serializeJob(job) {
   return {
     id: job._id.toString(),
@@ -203,11 +277,51 @@ function normalizeJobPayload(payload) {
     throw error;
   }
 
+  const budgetAmount = parseStrictMoney(budget, 'Budget');
+  const normalizedMilestones = Array.isArray(milestones)
+    ? milestones
+        .map((milestone) => {
+          const title = `${milestone?.title || ''}`.trim();
+          const amountValue = `${milestone?.amount || ''}`.trim();
+
+          if (!title && !amountValue) {
+            return null;
+          }
+
+          return {
+            title,
+            amount: formatCurrency(parseStrictMoney(amountValue, 'Milestone amount')),
+            dueDate: `${milestone?.dueDate || ''}`.trim(),
+            description: `${milestone?.description || ''}`.trim(),
+          };
+        })
+        .filter(Boolean)
+    : [];
+
+  if (normalizedMilestones.length === 0) {
+    const error = new Error('Please add at least one milestone with a title and payment amount');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  if (normalizedMilestones.some((milestone) => !milestone.title)) {
+    const error = new Error('Every milestone needs a title');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const milestoneTotal = normalizedMilestones.reduce((sum, milestone) => sum + parseBudgetNumber(milestone.amount), 0);
+  if (Math.abs(milestoneTotal - budgetAmount) > 0.01) {
+    const error = new Error('Milestone total must equal the job budget');
+    error.statusCode = 400;
+    throw error;
+  }
+
   return {
     title: title.trim(),
     description: description.trim(),
     category: category.trim(),
-    budget: budget.trim(),
+    budget: formatCurrency(budgetAmount),
     experienceLevel: typeof experienceLevel === 'string' ? experienceLevel.trim() : '',
     timeline: typeof timeline === 'string' ? timeline.trim() : '',
     locationType: typeof locationType === 'string' ? locationType.trim() : '',
@@ -216,16 +330,7 @@ function normalizeJobPayload(payload) {
     skills: Array.isArray(skills)
       ? skills.map((skill) => `${skill}`.trim()).filter(Boolean)
       : [],
-    milestones: Array.isArray(milestones)
-      ? milestones
-          .map((milestone) => ({
-            title: `${milestone?.title || ''}`.trim(),
-            amount: `${milestone?.amount || ''}`.trim(),
-            dueDate: `${milestone?.dueDate || ''}`.trim(),
-            description: `${milestone?.description || ''}`.trim(),
-          }))
-          .filter((milestone) => milestone.title && milestone.amount)
-      : [],
+    milestones: normalizedMilestones,
   };
 }
 
@@ -380,11 +485,20 @@ export async function acceptJob(req, res) {
   }
 
   if (job.status === 'assigned' && String(job.assignedFreelancerId) === String(req.user._id)) {
+    const pendingReservation = await ensurePendingPaymentsForJob(job, { strict: true });
+
     res.status(200).json({
       message: 'Job already accepted',
       job: serializeJob(job),
+      pendingReservation,
     });
     return;
+  }
+
+  if (job.status !== 'open') {
+    const error = new Error('This job is not available to accept');
+    error.statusCode = 409;
+    throw error;
   }
 
   job.status = 'assigned';
@@ -394,19 +508,146 @@ export async function acceptJob(req, res) {
   job.acceptedAt = new Date();
   job.contractState = buildDefaultContractState(job);
 
+  await assertClientCanReservePendingPayments(job);
+
+  try {
+    await job.save();
+    const pendingReservation = await ensurePendingPaymentsForJob(job, { strict: true });
+    await createNotification({
+      recipient: { _id: job.clientId, role: 'client' },
+      actor: req.user,
+      type: 'job_accepted',
+      title: 'Job accepted',
+      body: `${req.user.fullName || req.user.email} accepted "${job.title}". Pending escrow has been reserved.`,
+      actionPage: 'contracts',
+      actionId: job._id.toString(),
+      metadata: { jobId: job._id.toString(), jobTitle: job.title },
+    });
+    await createNotification({
+      recipient: req.user,
+      actor: req.user,
+      type: 'job_accepted',
+      title: 'Contract created',
+      body: `You accepted "${job.title}". The contract is ready in your workspace.`,
+      actionPage: 'contracts',
+      actionId: job._id.toString(),
+      metadata: { jobId: job._id.toString(), jobTitle: job.title },
+    });
+
+    res.status(200).json({
+      message: 'Job accepted successfully',
+      job: serializeJob(job),
+      pendingReservation,
+    });
+  } catch (error) {
+    job.status = 'open';
+    job.assignedFreelancerId = null;
+    job.assignedFreelancerName = '';
+    job.assignedFreelancerRole = '';
+    job.acceptedAt = null;
+    job.contractState = null;
+    await job.save().catch(() => {});
+
+    throw error;
+  }
+}
+
+export async function cancelJob(req, res) {
+  const job = await Job.findById(req.params.jobId);
+
+  if (!job) {
+    const error = new Error('Job not found');
+    error.statusCode = 404;
+    throw error;
+  }
+
+  const isClientOwner = req.user.role === 'client' && String(job.clientId) === String(req.user._id);
+  const isAssignedFreelancer = req.user.role === 'freelancer' && String(job.assignedFreelancerId) === String(req.user._id);
+
+  if (!isClientOwner && !isAssignedFreelancer) {
+    const error = new Error('You do not have permission to cancel this job');
+    error.statusCode = 403;
+    throw error;
+  }
+
+  if (job.status !== 'assigned') {
+    const error = new Error('Only active contracts can be cancelled');
+    error.statusCode = 409;
+    throw error;
+  }
+
+  await assertJobHasNoCompletedPayments(job);
+  const cancelledFreelancerId = job.assignedFreelancerId;
+  const refundedAmount = await refundPendingPaymentsForJob(job);
+  resetAcceptedJob(job);
   await job.save();
 
+  const counterpart = isClientOwner
+    ? { _id: cancelledFreelancerId, role: 'freelancer' }
+    : { _id: job.clientId, role: 'client' };
+  await createNotification({
+    recipient: counterpart,
+    actor: req.user,
+    type: 'job_cancelled',
+    title: 'Contract cancelled',
+    body: `"${job.title}" was cancelled and returned to the marketplace.`,
+    actionPage: isClientOwner ? 'marketplace' : 'contracts',
+    actionId: job._id.toString(),
+    metadata: { jobId: job._id.toString(), jobTitle: job.title, refundedAmount },
+  });
+
   res.status(200).json({
-    message: 'Job accepted successfully',
+    message: 'Job cancelled and returned to marketplace',
+    refundedAmount,
     job: serializeJob(job),
+  });
+}
+
+export async function deleteJob(req, res) {
+  if (req.user.role !== 'client') {
+    const error = new Error('Only clients can delete job posts');
+    error.statusCode = 403;
+    throw error;
+  }
+
+  const job = await Job.findById(req.params.jobId);
+
+  if (!job) {
+    const error = new Error('Job not found');
+    error.statusCode = 404;
+    throw error;
+  }
+
+  if (String(job.clientId) !== String(req.user._id)) {
+    const error = new Error('You can only delete your own job posts');
+    error.statusCode = 403;
+    throw error;
+  }
+
+  await assertJobHasNoCompletedPayments(job);
+  const refundedAmount = await refundPendingPaymentsForJob(job);
+  await Job.findByIdAndDelete(job._id);
+
+  res.status(200).json({
+    message: 'Job deleted successfully',
+    refundedAmount,
+    deletedJobId: job._id.toString(),
   });
 }
 
 export async function updateJobContractMilestone(req, res) {
   const { jobId, milestoneIndex } = req.params;
-  const { actionType, submission } = req.body || {};
+  const { submission } = req.body || {};
+  const actionAliases = {
+    remove: 'remove-submission',
+    removeSubmission: 'remove-submission',
+    'remove-submission': 'remove-submission',
+    deleteSubmission: 'remove-submission',
+    'delete-submission': 'remove-submission',
+  };
+  const actionType = actionAliases[req.body?.actionType] || actionAliases[req.body?.action] || actionAliases[req.body?.type] || req.body?.actionType;
 
-  if (!['submit', 'approve'].includes(actionType)) {
+  if (!['submit', 'approve', 'remove-submission'].includes(actionType)) {
     const error = new Error('Unsupported contract action');
     error.statusCode = 400;
     throw error;
@@ -444,6 +685,17 @@ export async function updateJobContractMilestone(req, res) {
   if (actionType === 'approve') {
     if (req.user.role !== 'client' || String(job.clientId) !== String(req.user._id)) {
       const error = new Error('Only the client who posted this job can approve milestones');
+      error.statusCode = 403;
+      throw error;
+    }
+  }
+
+  if (actionType === 'remove-submission') {
+    const isAssignedFreelancer = req.user.role === 'freelancer' && String(job.assignedFreelancerId) === String(req.user._id);
+    const isClientOwner = req.user.role === 'client' && String(job.clientId) === String(req.user._id);
+
+    if (!isAssignedFreelancer && !isClientOwner) {
+      const error = new Error('Only the assigned freelancer or job client can remove submitted files');
       error.statusCode = 403;
       throw error;
     }
@@ -497,6 +749,34 @@ export async function updateJobContractMilestone(req, res) {
     }
   }
 
+  if (actionType === 'remove-submission') {
+    if (target.status === 'Approved') {
+      const error = new Error('Approved milestones cannot remove submitted files');
+      error.statusCode = 409;
+      throw error;
+    }
+
+    if (!target.submission?.fileDataUrl && !target.submission?.fileName) {
+      const error = new Error('This milestone does not have an uploaded file to remove');
+      error.statusCode = 409;
+      throw error;
+    }
+
+    target.status = 'In Progress';
+    target.action = 'Submit Work';
+    target.reviewAction = index === 0 ? 'View Brief' : 'View Draft';
+    target.reviewNote = req.user.role === 'client'
+      ? 'The client removed the previous file. Please upload the corrected delivery.'
+      : 'The uploaded file was removed. Upload a corrected delivery when ready.';
+    target.submission = {
+      fileName: '',
+      fileType: '',
+      fileDataUrl: '',
+      note: '',
+      submittedAt: null,
+    };
+  }
+
   if (actionType === 'approve') {
     if (!['Completed', 'In Progress'].includes(target.status)) {
       const error = new Error('This milestone is not ready for approval');
@@ -521,15 +801,17 @@ export async function updateJobContractMilestone(req, res) {
 
     if (approvedAmount > 0) {
       const { account: freelancerAccount, model: freelancerModel } = await findAccountByIdAndRole(job.assignedFreelancerId, 'freelancer');
+      let pendingTransaction = await Transaction.findOne({
+        type: 'release',
+        status: 'pending',
+        jobId: job._id,
+        milestoneIndex: index,
+        fromUser: job.clientId,
+        toUser: job.assignedFreelancerId,
+      });
+      let shouldCreditFreelancer = true;
 
-      if (freelancerAccount && freelancerModel) {
-        const nextFreelancerBalance = (freelancerAccount.balance || 0) + approvedAmount;
-        await freelancerModel.findByIdAndUpdate(freelancerAccount._id, {
-          $set: { balance: nextFreelancerBalance },
-        });
-      }
-
-      if (req.accountModel && req.user?._id) {
+      if (!pendingTransaction && req.accountModel && req.user?._id) {
         const currentBalance = req.user.balance || 0;
         if (currentBalance < approvedAmount) {
           const error = new Error('Insufficient available balance to approve and pay this milestone');
@@ -542,15 +824,44 @@ export async function updateJobContractMilestone(req, res) {
         await req.accountModel.findByIdAndUpdate(req.user._id, {
           $set: { balance: nextBalance },
         });
+
+        pendingTransaction = await Transaction.create({
+          type: 'release',
+          amount: approvedAmount,
+          fromUser: req.user._id,
+          toUser: job.assignedFreelancerId,
+          jobId: job._id,
+          milestoneIndex: index,
+          description: `Milestone approved and paid for job: ${job.title}`,
+          status: 'completed',
+        });
+        shouldCreditFreelancer = false;
       }
 
-      await Transaction.create({
-        type: 'release',
-        amount: approvedAmount,
-        fromUser: req.user._id,
-        toUser: job.assignedFreelancerId,
-        description: `Milestone approved and paid for job: ${job.title}`,
-      });
+      if (freelancerAccount && freelancerModel) {
+        const nextFreelancerBalance = (freelancerAccount.balance || 0) + approvedAmount;
+        await freelancerModel.findByIdAndUpdate(freelancerAccount._id, {
+          $set: { balance: nextFreelancerBalance },
+        });
+      }
+
+      if (pendingTransaction && pendingTransaction.status === 'pending') {
+        pendingTransaction.amount = approvedAmount;
+        pendingTransaction.status = 'completed';
+        pendingTransaction.description = `Milestone approved and paid for job: ${job.title}`;
+        await pendingTransaction.save();
+      } else if (!pendingTransaction && shouldCreditFreelancer) {
+        await Transaction.create({
+          type: 'release',
+          amount: approvedAmount,
+          fromUser: req.user._id,
+          toUser: job.assignedFreelancerId,
+          jobId: job._id,
+          milestoneIndex: index,
+          description: `Milestone approved and paid for job: ${job.title}`,
+          status: 'completed',
+        });
+      }
     }
   }
 
@@ -559,11 +870,68 @@ export async function updateJobContractMilestone(req, res) {
     milestones,
     ...computeContractMeta(milestones),
   };
+  job.markModified('contractState');
+  job.markModified('contractState.milestones');
 
   await job.save();
 
+  if (actionType === 'submit') {
+    await createNotification({
+      recipient: req.user,
+      actor: req.user,
+      type: 'milestone_submitted',
+      title: 'Submission sent',
+      body: `You submitted "${target.title?.en || `Milestone ${index + 1}`}" for "${job.title}".`,
+      actionPage: 'contracts',
+      actionId: job._id.toString(),
+      metadata: {
+        jobId: job._id.toString(),
+        jobTitle: job.title,
+        milestoneIndex: index,
+        milestoneTitle: target.title?.en || '',
+      },
+    });
+    await createNotification({
+      recipient: { _id: job.clientId, role: 'client' },
+      actor: req.user,
+      type: 'milestone_submitted',
+      title: 'Milestone submitted',
+      body: `${req.user.fullName || req.user.email} submitted "${target.title?.en || `Milestone ${index + 1}`}" for "${job.title}".`,
+      actionPage: 'contracts',
+      actionId: job._id.toString(),
+      metadata: {
+        jobId: job._id.toString(),
+        jobTitle: job.title,
+        milestoneIndex: index,
+        milestoneTitle: target.title?.en || '',
+      },
+    });
+  }
+
+  if (actionType === 'approve') {
+    await createNotification({
+      recipient: { _id: job.assignedFreelancerId, role: 'freelancer' },
+      actor: req.user,
+      type: 'milestone_approved',
+      title: 'Milestone approved',
+      body: `"${target.title?.en || `Milestone ${index + 1}`}" was approved and paid for "${job.title}".`,
+      actionPage: 'contracts',
+      actionId: job._id.toString(),
+      metadata: {
+        jobId: job._id.toString(),
+        jobTitle: job.title,
+        milestoneIndex: index,
+        milestoneTitle: target.title?.en || '',
+      },
+    });
+  }
+
   res.status(200).json({
-    message: actionType === 'submit' ? 'Milestone submitted successfully' : 'Milestone approved successfully',
+    message: actionType === 'submit'
+      ? 'Milestone submitted successfully'
+      : actionType === 'remove-submission'
+        ? 'Submitted file removed successfully'
+        : 'Milestone approved successfully',
     job: serializeJob(job),
   });
 }

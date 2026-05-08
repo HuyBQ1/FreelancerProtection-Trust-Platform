@@ -1,6 +1,9 @@
 import ChatThread from '../models/ChatThread.js';
 import Job from '../models/Job.js';
+import Transaction from '../models/Transaction.js';
 import { findAccountByEmail, findAccountByIdAndRole, findFirstAccountByRole } from '../services/accountService.js';
+import { ensurePendingPaymentsForJob } from '../services/pendingPaymentService.js';
+import { createNotification } from '../services/notificationService.js';
 import { emitToUser } from '../socket.js';
 
 function formatMessageTime(date) {
@@ -18,6 +21,20 @@ function buildParticipantLabel(role) {
 
 function isValidObjectId(value) {
   return typeof value === 'string' && /^[a-fA-F0-9]{24}$/.test(value);
+}
+
+function parseBudgetNumber(budget) {
+  const normalized = `${budget || ''}`.replace(/[^0-9.]/g, '');
+  const parsed = Number.parseFloat(normalized);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function formatCurrency(amount) {
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    maximumFractionDigits: 0,
+  }).format(amount || 0);
 }
 
 function isJobCompleted(job) {
@@ -216,6 +233,16 @@ export async function createThread(req, res) {
 
   emitToUser(req.user, 'chat:thread-updated', { thread: serializeThread(thread, req.user) });
   emitToUser(counterparty, 'chat:thread-updated', { thread: serializeThread(thread, counterparty) });
+  await createNotification({
+    recipient: counterparty,
+    actor: req.user,
+    type: 'message',
+    title: 'New chat started',
+    body: `${req.user.fullName || req.user.email} started a conversation about "${thread.contract}".`,
+    actionPage: 'chat',
+    actionId: thread._id.toString(),
+    metadata: { threadId: thread._id.toString(), jobId: validJobId || '', contract: thread.contract },
+  });
 
   res.status(201).json({
     message: 'Chat thread created successfully',
@@ -282,12 +309,24 @@ export async function sendMessage(req, res) {
   await thread.save();
 
   emitToUser(req.user, 'chat:thread-updated', { thread: serializeThread(thread, req.user) });
-  thread.participants
+  const messageRecipients = thread.participants
     .filter((participant) => !(
       String(participant.userId) === String(req.user._id)
       && participant.role === req.user.role
-    ))
-    .forEach((participant) => {
+    ));
+
+  await Promise.all(messageRecipients.map((participant) => createNotification({
+    recipient: { _id: participant.userId, role: participant.role },
+    actor: req.user,
+    type: 'message',
+    title: 'New message',
+    body: `${req.user.fullName || req.user.email}: ${text.trim().slice(0, 110)}`,
+    actionPage: 'chat',
+    actionId: thread._id.toString(),
+    metadata: { threadId: thread._id.toString(), jobId: thread.jobId?.toString?.() || '', contract: thread.contract },
+  })));
+
+  messageRecipients.forEach((participant) => {
       emitToUser(
         {
           _id: participant.userId,
@@ -408,10 +447,49 @@ export async function updateDeal(req, res) {
     job.set(`milestones.${parsedMilestoneIndex}.amount`, formattedAmount);
     job.markModified('milestones');
 
+    const nextBudgetAmount = Array.isArray(job.milestones)
+      ? job.milestones.reduce((sum, milestone) => sum + parseBudgetNumber(milestone.amount), 0)
+      : parsedAmount;
+    job.budget = formatCurrency(nextBudgetAmount);
+
     if (job.contractState?.milestones?.[parsedMilestoneIndex]) {
       job.contractState.milestones[parsedMilestoneIndex].amount = formattedAmount;
       job.set(`contractState.milestones.${parsedMilestoneIndex}.amount`, formattedAmount);
       job.markModified('contractState.milestones');
+      job.markModified('contractState');
+    }
+
+    const pendingTransaction = await Transaction.findOne({
+      type: 'release',
+      status: 'pending',
+      jobId: job._id,
+      milestoneIndex: parsedMilestoneIndex,
+      fromUser: job.clientId,
+      toUser: job.assignedFreelancerId,
+    });
+
+    if (pendingTransaction) {
+      const difference = parsedAmount - (pendingTransaction.amount || 0);
+
+      if (difference !== 0 && req.accountModel && req.user?._id) {
+        const currentBalance = req.user.balance || 0;
+
+        if (difference > 0 && currentBalance < difference) {
+          const error = new Error('Insufficient available balance to reserve the updated deal price');
+          error.statusCode = 400;
+          throw error;
+        }
+
+        const nextClientBalance = currentBalance - difference;
+        req.user.balance = nextClientBalance;
+        await req.accountModel.findByIdAndUpdate(req.user._id, {
+          $set: { balance: nextClientBalance },
+        });
+      }
+
+      pendingTransaction.amount = parsedAmount;
+      pendingTransaction.description = `Pending milestone payment for job: ${job.title} - ${milestoneTitle}`;
+      await pendingTransaction.save();
     }
 
     if (!thread.jobId) {
@@ -419,6 +497,7 @@ export async function updateDeal(req, res) {
     }
 
     await job.save();
+    await ensurePendingPaymentsForJob(job, { strict: true });
   }
 
   thread.deal = {
@@ -464,12 +543,24 @@ export async function updateDeal(req, res) {
   await thread.save();
 
   emitToUser(req.user, 'chat:thread-updated', { thread: serializeThread(thread, req.user) });
-  thread.participants
+  const recipients = thread.participants
     .filter((participant) => !(
       String(participant.userId) === String(req.user._id)
       && participant.role === req.user.role
-    ))
-    .forEach((participant) => {
+    ));
+
+  await Promise.all(recipients.map((participant) => createNotification({
+    recipient: { _id: participant.userId, role: participant.role },
+    actor: req.user,
+    type: 'deal_updated',
+    title: action === 'accept' ? 'Deal price accepted' : 'Deal price updated',
+    body: `${req.user.fullName || req.user.email} ${actionLabel} ${formattedAmount} for "${milestoneTitle}".`,
+    actionPage: 'chat',
+    actionId: thread._id.toString(),
+    metadata: { threadId: thread._id.toString(), jobId: thread.jobId?.toString?.() || '', contract: thread.contract },
+  })));
+
+  recipients.forEach((participant) => {
       emitToUser(
         {
           _id: participant.userId,

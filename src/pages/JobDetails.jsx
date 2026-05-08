@@ -184,11 +184,25 @@ function JobDetails() {
         throw new Error(data.message || 'Could not accept the job.');
       }
 
+      let paymentSummary = null;
+      try {
+        const summaryResponse = await fetch(`${API_BASE_URL}/escrow/summary`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+        const summaryData = await summaryResponse.json().catch(() => ({}));
+        paymentSummary = summaryResponse.ok ? summaryData.summary || null : null;
+      } catch {
+        paymentSummary = null;
+      }
+
       navigate('/freelancer-dashboard', {
         state: {
           initialPage: 'contracts',
           initialContractId: `job-contract-${data.job?.id || selectedJob.id}`,
           acceptedJob: data.job || null,
+          paymentSummary,
         },
       });
     } catch (error) {

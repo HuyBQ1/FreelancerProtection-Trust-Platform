@@ -1,5 +1,5 @@
 import React, { useCallback, useState, useEffect, useRef } from 'react';
-import { ArrowDownLeft, ArrowUpRight, BriefcaseBusiness, CircleDollarSign, ClipboardCheck, Download, Eye, FileUp, Landmark, MessageSquareMore, PencilLine, Plus, Receipt, Search, Send, Shield, ShieldCheck, Users, Wallet, X } from 'lucide-react';
+import { ArrowDownLeft, ArrowUpRight, BriefcaseBusiness, CircleDollarSign, ClipboardCheck, Download, Eye, FileUp, Landmark, MessageSquareMore, PencilLine, Plus, Receipt, Search, Send, Shield, ShieldCheck, Trash2, Users, Wallet, X, XCircle } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import Sidebar from '../components/Sidebar';
 import Topbar from '../components/Topbar';
@@ -139,8 +139,10 @@ function ClientDashboard() {
   const [user, setUser] = useState(readStoredUser);
   const [activePage, setActivePage] = useState(location.state?.initialPage || 'dashboard');
   const [availableBalance, setAvailableBalance] = useState(0);
+  const [pendingBalance, setPendingBalance] = useState(0);
   const [settingsSection, setSettingsSection] = useState('profile');
   const [selectedContractId, setSelectedContractId] = useState(`${location.state?.initialContractId || contracts[0]?.id || ''}`);
+  const [notificationThreadId, setNotificationThreadId] = useState(location.state?.initialThreadId || '');
   const [query, setQuery] = useState('');
   const [postedJobs, setPostedJobs] = useState([]);
   const [jobStatus, setJobStatus] = useState(location.state?.jobStatus || { type: '', message: '' });
@@ -163,6 +165,10 @@ function ClientDashboard() {
       setSelectedContractId(`${location.state.initialContractId}`);
     }
 
+    if (location.state?.initialThreadId) {
+      setNotificationThreadId(`${location.state.initialThreadId}`);
+    }
+
     if (location.state?.jobStatus) {
       setJobStatus(location.state.jobStatus);
     }
@@ -180,6 +186,9 @@ function ClientDashboard() {
         if (data.summary) {
           if (data.summary.balance !== undefined) {
             setAvailableBalance(data.summary.balance);
+          }
+          if (data.summary.pendingBalance !== undefined) {
+            setPendingBalance(data.summary.pendingBalance);
           }
           if (Array.isArray(data.summary.recentTransactions)) {
             setRecentTransactions(data.summary.recentTransactions);
@@ -323,6 +332,135 @@ function ClientDashboard() {
     } catch (error) {
       console.error('Failed to approve milestone:', error);
       setContractFeedback({ type: 'error', message: 'Something went wrong while updating this contract.' });
+    }
+  };
+
+  const removeSubmittedFile = async (contract, milestoneIndex) => {
+    if (!contract?.sourceJobId) {
+      setContractFeedback({ type: 'error', message: 'This contract is not linked to a database job.' });
+      return;
+    }
+
+    const token = localStorage.getItem(TOKEN_KEY);
+    if (!token) {
+      setContractFeedback({ type: 'error', message: 'Please log in again before removing this file.' });
+      return;
+    }
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/jobs/${contract.sourceJobId}/contract/milestones/${milestoneIndex}/action`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ actionType: 'remove-submission' }),
+      });
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        setContractFeedback({ type: 'error', message: data.message || 'Could not remove this file right now.' });
+        return;
+      }
+
+      setPostedJobs((currentJobs) => currentJobs.map((job) => (`${job.id}` === `${data.job.id}` ? data.job : job)));
+      await fetchMyJobs();
+      closeReviewModal();
+      setContractFeedback({ type: 'success', message: 'File removed. The freelancer can upload a corrected document.' });
+    } catch (error) {
+      console.error('Failed to remove submitted file:', error);
+      setContractFeedback({ type: 'error', message: 'Something went wrong while removing this file.' });
+    }
+  };
+
+  const cancelClientContract = async (contract) => {
+    if (!contract?.sourceJobId) {
+      setContractFeedback({ type: 'error', message: 'This contract is not linked to a database job.' });
+      return;
+    }
+
+    const token = localStorage.getItem(TOKEN_KEY);
+    if (!token) {
+      setContractFeedback({ type: 'error', message: 'Please log in again before cancelling this contract.' });
+      return;
+    }
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/jobs/${contract.sourceJobId}/cancel`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        setContractFeedback({ type: 'error', message: data.message || 'Could not cancel this contract right now.' });
+        return;
+      }
+
+      if (data.job) {
+        setPostedJobs((currentJobs) => currentJobs.map((job) => (`${job.id}` === `${data.job.id}` ? data.job : job)));
+      }
+      setAvailableBalance((current) => current + (data.refundedAmount || 0));
+      setPendingBalance((current) => Math.max(0, current - (data.refundedAmount || 0)));
+      setSelectedContractId('');
+      setContractFeedback({ type: 'success', message: 'Contract cancelled. The job is open again for freelancers.' });
+    } catch (error) {
+      console.error('Failed to cancel contract:', error);
+      setContractFeedback({ type: 'error', message: 'Something went wrong while cancelling this contract.' });
+    }
+  };
+
+  const deleteClientJob = async (jobId, feedbackTarget = 'job') => {
+    const token = localStorage.getItem(TOKEN_KEY);
+    if (!token) {
+      const message = 'Please log in again before deleting this job.';
+      if (feedbackTarget === 'contract') {
+        setContractFeedback({ type: 'error', message });
+      } else {
+        setJobStatus({ type: 'error', message });
+      }
+      return;
+    }
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/jobs/${jobId}`, {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        const message = data.message || 'Could not delete this job right now.';
+        if (feedbackTarget === 'contract') {
+          setContractFeedback({ type: 'error', message });
+        } else {
+          setJobStatus({ type: 'error', message });
+        }
+        return;
+      }
+
+      setPostedJobs((currentJobs) => currentJobs.filter((job) => `${job.id}` !== `${jobId}`));
+      setAvailableBalance((current) => current + (data.refundedAmount || 0));
+      setPendingBalance((current) => Math.max(0, current - (data.refundedAmount || 0)));
+      setSelectedContractId('');
+
+      if (feedbackTarget === 'contract') {
+        setContractFeedback({ type: 'success', message: 'Job deleted successfully.' });
+      } else {
+        setJobStatus({ type: 'success', message: 'Job deleted successfully.' });
+      }
+    } catch (error) {
+      console.error('Failed to delete job:', error);
+      const message = 'Something went wrong while deleting this job.';
+      if (feedbackTarget === 'contract') {
+        setContractFeedback({ type: 'error', message });
+      } else {
+        setJobStatus({ type: 'error', message });
+      }
     }
   };
 
@@ -486,10 +624,10 @@ function ClientDashboard() {
   };
 
   const dashboardLayout = (content) => (
-    <div className="min-h-screen bg-slate-100/80">
-      <div className="mx-auto flex w-full max-w-[1680px] gap-6 px-4 py-4 sm:px-6 xl:px-8">
+    <div className={`${activePage === 'chat' ? 'h-screen overflow-hidden' : 'min-h-screen'} bg-slate-100/80`}>
+      <div className={`mx-auto flex w-full max-w-[1680px] gap-6 px-4 py-4 sm:px-6 xl:px-8 ${activePage === 'chat' ? 'h-full overflow-hidden' : ''}`}>
         <Sidebar items={sidebarItems} activePage={activePage} onNavigate={setActivePage} labels={labels} />
-        <div className="min-w-0 flex-1 space-y-6">
+        <div className={`min-w-0 flex-1 ${activePage === 'chat' ? 'flex min-h-0 flex-col space-y-4 overflow-hidden' : 'space-y-6'}`}>
           <Topbar
             title={titles[activePage]}
             subtitle="Client workspace for approvals, protected payments, and supplier management"
@@ -500,6 +638,26 @@ function ClientDashboard() {
             }}
             onOpenBankSettings={() => {
               setActivePage('bank');
+            }}
+            onNotificationOpen={(notification) => {
+              if (notification?.actionPage === 'chat') {
+                setNotificationThreadId(notification.metadata?.threadId || notification.actionId || '');
+                setActivePage('chat');
+                return;
+              }
+
+              if (notification?.actionPage === 'contracts') {
+                const jobId = notification.metadata?.jobId || notification.actionId;
+                if (jobId) {
+                  setSelectedContractId(`job-contract-${jobId}`);
+                }
+                setActivePage('contracts');
+                return;
+              }
+
+              if (notification?.actionPage && titles[notification.actionPage]) {
+                setActivePage(notification.actionPage);
+              }
             }}
             language={user?.settings?.language || 'en'}
             onLanguageChange={handleLanguageChange}
@@ -583,6 +741,14 @@ function ClientDashboard() {
                   <PencilLine className="h-4 w-4" />
                   Edit Job Post
                 </button>
+                <button
+                  type="button"
+                  onClick={() => deleteClientJob(job.id)}
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700 transition hover:border-rose-300 hover:bg-rose-100"
+                >
+                  <Trash2 className="h-4 w-4" />
+                  Delete Job
+                </button>
               </div>
             ))}
           </div>
@@ -658,8 +824,30 @@ function ClientDashboard() {
             ))}
           </div>
           <SectionCard className="p-6">
-            <h3 className="text-2xl font-bold text-ink">{selectedClientContract.title.en}</h3>
-            <p className="mt-2 text-slate-500">{selectedClientContract.client}</p>
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+              <div>
+                <h3 className="text-2xl font-bold text-ink">{selectedClientContract.title.en}</h3>
+                <p className="mt-2 text-slate-500">{selectedClientContract.client}</p>
+              </div>
+              <div className="flex shrink-0 items-center gap-3 whitespace-nowrap">
+                <button
+                  type="button"
+                  onClick={() => cancelClientContract(selectedClientContract)}
+                  className="inline-flex min-w-[150px] items-center justify-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2 text-sm font-semibold text-amber-700 transition hover:border-amber-300 hover:bg-amber-100"
+                >
+                  <XCircle className="h-4 w-4" />
+                  Cancel Contract
+                </button>
+                <button
+                  type="button"
+                  onClick={() => deleteClientJob(selectedClientContract.sourceJobId, 'contract')}
+                  className="inline-flex min-w-[120px] items-center justify-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-4 py-2 text-sm font-semibold text-rose-700 transition hover:border-rose-300 hover:bg-rose-100"
+                >
+                  <Trash2 className="h-4 w-4" />
+                  Delete Job
+                </button>
+              </div>
+            </div>
             <div className="mt-8 grid gap-6 md:grid-cols-3">
               <div><p className="text-sm text-slate-500">Approved budget</p><p className="mt-2 text-2xl font-bold text-ink">{selectedClientContract.budget}</p></div>
               <div><p className="text-sm text-slate-500">Released so far</p><p className="mt-2 text-2xl font-bold text-emerald-600">{selectedClientContract.earned}</p></div>
@@ -835,6 +1023,14 @@ function ClientDashboard() {
                           Approve milestone
                         </button>
                       ) : null}
+                      <button
+                        type="button"
+                        onClick={() => removeSubmittedFile(reviewModal.contract, reviewModal.milestoneIndex)}
+                        className="inline-flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-4 py-2.5 text-sm font-semibold text-rose-700 transition hover:border-rose-300 hover:bg-rose-100"
+                      >
+                        <XCircle className="h-4 w-4" />
+                        Remove file
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -855,6 +1051,7 @@ function ClientDashboard() {
       <PaymentCenter
         mode="client"
         balance={availableBalance}
+        pendingBalance={pendingBalance}
         walletAmount={walletAmount}
         onWalletAmountChange={setWalletAmount}
         walletLoading={walletLoading}
@@ -1307,7 +1504,7 @@ function ClientDashboard() {
       <ChatPanel
         currentUser={user}
         userName={user?.fullName || user?.email || 'Client'}
-        initialThreadId={location.state?.initialThreadId || ''}
+        initialThreadId={notificationThreadId || location.state?.initialThreadId || ''}
         onDealUpdated={handleDealUpdated}
       />,
     );

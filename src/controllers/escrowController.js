@@ -1,6 +1,8 @@
 import Contract from '../models/Contract.js';
+import Job from '../models/Job.js';
 import Transaction from '../models/Transaction.js';
 import { findAccountByIdAndRole } from '../services/accountService.js';
+import { ensurePendingPaymentsForJob } from '../services/pendingPaymentService.js';
 
 function getStrictObjectId(value) {
   if (typeof value !== 'string') {
@@ -142,15 +144,38 @@ export const releaseToFreelancer = async (req, res, next) => {
 export const getEscrowSummary = async (req, res, next) => {
   try {
     const userId = req.user._id;
-    
+
+    const assignedJobs = await Job.find(req.user.role === 'client'
+      ? { clientId: userId, status: 'assigned' }
+      : { assignedFreelancerId: userId, status: 'assigned' });
+
+    const pendingSyncResults = await Promise.all(assignedJobs.map((job) => ensurePendingPaymentsForJob(job, { strict: false })));
+
+    const freshAccount = req.accountModel ? await req.accountModel.findById(userId) : null;
+
     const summary = {
-      balance: req.user.balance || 0,
+      balance: freshAccount?.balance ?? req.user.balance ?? 0,
     };
     const transactionQuery = req.user.role === 'client'
       ? { $or: [{ fromUser: userId }, { toUser: userId }] }
       : { $or: [{ toUser: userId }, { fromUser: userId }] };
     const transactions = await Transaction.find(transactionQuery).sort({ createdAt: -1 }).limit(10);
-    summary.recentTransactions = transactions;
+    const pendingQuery = req.user.role === 'client'
+      ? { fromUser: userId, status: 'pending' }
+      : { toUser: userId, status: 'pending' };
+    const pendingTransactions = await Transaction.find(pendingQuery);
+    const recentById = new Map();
+    [...pendingTransactions, ...transactions].forEach((transaction) => {
+      recentById.set(transaction._id.toString(), transaction);
+    });
+    const recentTransactions = Array.from(recentById.values())
+      .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))
+      .slice(0, 10);
+
+    summary.pendingBalance = pendingTransactions.reduce((sum, transaction) => sum + (transaction.amount || 0), 0);
+    summary.pendingSkippedAmount = pendingSyncResults.reduce((sum, result) => sum + (result.skippedAmount || 0), 0);
+    summary.pendingTransactions = pendingTransactions;
+    summary.recentTransactions = recentTransactions;
 
     res.status(200).json({ summary });
   } catch (error) {

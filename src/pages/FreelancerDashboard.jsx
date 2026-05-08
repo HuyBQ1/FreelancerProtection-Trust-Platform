@@ -1,16 +1,14 @@
 import React, { useCallback, useState, useEffect, useRef } from 'react';
-import { ChevronRight, CircleCheckBig, Clock3, Download, Eye, FileUp, HandCoins, Hourglass, Search, Shield, Upload, UserRound, X } from 'lucide-react';
+import { ArrowUpRight, BriefcaseBusiness, CalendarClock, ChevronRight, CircleCheckBig, CircleDollarSign, Clock3, Download, Eye, FileCheck2, FileUp, HandCoins, Hourglass, Search, Shield, Sparkles, TrendingUp, Upload, UserRound, WalletCards, X, XCircle } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import Sidebar from '../components/Sidebar';
 import Topbar from '../components/Topbar';
-import StatCard from '../components/StatCard';
 import SectionCard from '../components/SectionCard';
 import JobCard from '../components/JobCard';
-import StatusBadge from '../components/StatusBadge';
 import ChatPanel from '../components/ChatPanel';
 import SettingsPanel from '../components/SettingsPanel';
 import PaymentCenter from '../components/PaymentCenter';
-import { activities, contracts, disputes, jobs, sidebarItems, stats } from '../data/appData';
+import { contracts, disputes, sidebarItems } from '../data/appData';
 import { createContractFromAcceptedJob, normalizeContractForView } from '../utils/contractTransforms';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
@@ -66,6 +64,11 @@ function formatMoney(amount) {
     currency: 'USD',
     maximumFractionDigits: 0,
   }).format(amount || 0);
+}
+
+function parseMoneyAmount(value) {
+  const parsed = Number.parseFloat(`${value || ''}`.replace(/[^0-9.-]/g, ''));
+  return Number.isFinite(parsed) ? parsed : 0;
 }
 
 function getTransactionLabel(type) {
@@ -150,8 +153,10 @@ function FreelancerDashboard() {
   const [query, setQuery] = useState('');
   const [selectedFilter, setSelectedFilter] = useState('All');
   const [selectedContractId, setSelectedContractId] = useState(`${location.state?.initialContractId || contracts[0]?.id || ''}`);
+  const [notificationThreadId, setNotificationThreadId] = useState(location.state?.initialThreadId || '');
   const [selectedDisputeId, setSelectedDisputeId] = useState(disputes[0]?.id ?? 1);
   const [availableBalance, setAvailableBalance] = useState(0);
+  const [pendingBalance, setPendingBalance] = useState(0);
   const [jobList, setJobList] = useState([]);
   const [acceptedJobs, setAcceptedJobs] = useState([]);
   const [contractFeedback, setContractFeedback] = useState({ type: '', message: '' });
@@ -160,7 +165,7 @@ function FreelancerDashboard() {
   const [walletLoading, setWalletLoading] = useState(false);
   const [recentTransactions, setRecentTransactions] = useState([]);
   const [submitModal, setSubmitModal] = useState({ open: false, contract: null, milestone: null, milestoneIndex: -1 });
-  const [reviewModal, setReviewModal] = useState({ open: false, milestone: null });
+  const [reviewModal, setReviewModal] = useState({ open: false, contract: null, milestone: null, milestoneIndex: -1 });
   const [reviewZoom, setReviewZoom] = useState(1);
   const [reviewPan, setReviewPan] = useState({ x: 0, y: 0 });
   const [submitForm, setSubmitForm] = useState({ note: '', file: null });
@@ -176,12 +181,30 @@ function FreelancerDashboard() {
       setPendingInitialContractId(`${location.state.initialContractId}`);
     }
 
+    if (location.state?.initialThreadId) {
+      setNotificationThreadId(`${location.state.initialThreadId}`);
+    }
+
     if (location.state?.acceptedJob?.id) {
       setAcceptedJobs((currentJobs) => {
         const nextJob = location.state.acceptedJob;
         const remainingJobs = currentJobs.filter((job) => `${job.id}` !== `${nextJob.id}`);
         return [nextJob, ...remainingJobs];
       });
+    }
+
+    if (location.state?.paymentSummary) {
+      if (location.state.paymentSummary.balance !== undefined) {
+        setAvailableBalance(location.state.paymentSummary.balance);
+      }
+
+      if (location.state.paymentSummary.pendingBalance !== undefined) {
+        setPendingBalance(location.state.paymentSummary.pendingBalance);
+      }
+
+      if (Array.isArray(location.state.paymentSummary.recentTransactions)) {
+        setRecentTransactions(location.state.paymentSummary.recentTransactions);
+      }
     }
   }, [location.state]);
 
@@ -198,6 +221,9 @@ function FreelancerDashboard() {
         if (data.summary) {
           if (data.summary.balance !== undefined) {
             setAvailableBalance(data.summary.balance);
+          }
+          if (data.summary.pendingBalance !== undefined) {
+            setPendingBalance(data.summary.pendingBalance);
           }
           if (Array.isArray(data.summary.recentTransactions)) {
             setRecentTransactions(data.summary.recentTransactions);
@@ -318,6 +344,27 @@ function FreelancerDashboard() {
     localStorage.setItem('fptp_user', JSON.stringify(nextUser));
   };
 
+  const handleNotificationOpen = (notification) => {
+    if (notification?.actionPage === 'chat') {
+      setNotificationThreadId(notification.metadata?.threadId || notification.actionId || '');
+      setActivePage('chat');
+      return;
+    }
+
+    if (notification?.actionPage === 'contracts') {
+      const jobId = notification.metadata?.jobId || notification.actionId;
+      if (jobId) {
+        setSelectedContractId(`job-contract-${jobId}`);
+      }
+      setActivePage('contracts');
+      return;
+    }
+
+    if (notification?.actionPage && titles[notification.actionPage]) {
+      setActivePage(notification.actionPage);
+    }
+  };
+
   const openContractBrief = (contract) => {
     if (contract?.source === 'job-acceptance' && contract?.sourceJobId) {
       navigate(`/freelancer-jobs/${contract.sourceJobId}`);
@@ -329,10 +376,10 @@ function FreelancerDashboard() {
     setSubmitModal({ open: true, contract, milestone, milestoneIndex });
   };
 
-  const openReviewModal = (milestone) => {
+  const openReviewModal = (contract, milestone, milestoneIndex) => {
     setReviewZoom(1);
     setReviewPan({ x: 0, y: 0 });
-    setReviewModal({ open: true, milestone });
+    setReviewModal({ open: true, contract, milestone, milestoneIndex });
   };
 
   const closeSubmitModal = () => {
@@ -344,7 +391,7 @@ function FreelancerDashboard() {
   const closeReviewModal = () => {
     setReviewZoom(1);
     setReviewPan({ x: 0, y: 0 });
-    setReviewModal({ open: false, milestone: null });
+    setReviewModal({ open: false, contract: null, milestone: null, milestoneIndex: -1 });
   };
 
   const handleMilestoneSubmit = async (contract, milestone, milestoneIndex, submissionPayload) => {
@@ -383,6 +430,44 @@ function FreelancerDashboard() {
     }
   };
 
+  const removeSubmittedFile = async (contract, milestoneIndex) => {
+    if (!contract?.sourceJobId) {
+      setContractFeedback({ type: 'error', message: 'This contract is not linked to a database job.' });
+      return;
+    }
+
+    const token = localStorage.getItem('fptp_token');
+    if (!token) {
+      setContractFeedback({ type: 'error', message: 'Please log in again before removing this file.' });
+      return;
+    }
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/jobs/${contract.sourceJobId}/contract/milestones/${milestoneIndex}/action`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ actionType: 'remove-submission' }),
+      });
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        setContractFeedback({ type: 'error', message: data.message || 'Could not remove this file right now.' });
+        return;
+      }
+
+      setAcceptedJobs((currentJobs) => currentJobs.map((job) => (`${job.id}` === `${data.job.id}` ? data.job : job)));
+      await fetchAssignedJobs();
+      closeReviewModal();
+      setContractFeedback({ type: 'success', message: 'File removed. You can upload the corrected document again.' });
+    } catch (error) {
+      console.error('Failed to remove submitted file:', error);
+      setContractFeedback({ type: 'error', message: 'Something went wrong while removing this file.' });
+    }
+  };
+
   const submitContractWork = async () => {
     if (!submitModal.contract || !submitModal.milestone) {
       return;
@@ -412,6 +497,48 @@ function FreelancerDashboard() {
       console.error('Failed to prepare submission:', error);
       setContractFeedback({ type: 'error', message: 'Could not prepare the file for submission.' });
       setSubmitting(false);
+    }
+  };
+
+  const cancelAcceptedJob = async (contract) => {
+    if (!contract?.sourceJobId) {
+      setContractFeedback({ type: 'error', message: 'This contract is not linked to a database job.' });
+      return;
+    }
+
+    const token = localStorage.getItem('fptp_token');
+    if (!token) {
+      setContractFeedback({ type: 'error', message: 'Please log in again before cancelling this job.' });
+      return;
+    }
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/jobs/${contract.sourceJobId}/cancel`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        setContractFeedback({ type: 'error', message: data.message || 'Could not cancel this job right now.' });
+        return;
+      }
+
+      setAcceptedJobs((currentJobs) => currentJobs.filter((job) => `${job.id}` !== `${contract.sourceJobId}`));
+      if (data.job) {
+        setJobList((currentJobs) => {
+          const withoutJob = currentJobs.filter((job) => `${job.id}` !== `${data.job.id}`);
+          return [data.job, ...withoutJob];
+        });
+      }
+      setPendingBalance((current) => Math.max(0, current - (data.refundedAmount || 0)));
+      setSelectedContractId('');
+      setContractFeedback({ type: 'success', message: 'Job cancelled. It is available again in Marketplace.' });
+    } catch (error) {
+      console.error('Failed to cancel job:', error);
+      setContractFeedback({ type: 'error', message: 'Something went wrong while cancelling this job.' });
     }
   };
 
@@ -524,11 +651,27 @@ function FreelancerDashboard() {
     };
   }, [reviewModal.open]);
 
+  const activeContracts = contractList.filter((contract) => contract.status !== 'Completed');
+  const completedContracts = contractList.filter((contract) => contract.status === 'Completed');
+  const totalContractValue = contractList.reduce((total, contract) => total + parseMoneyAmount(contract.budget), 0);
+  const earnedValue = contractList.reduce((total, contract) => total + parseMoneyAmount(contract.earned), 0);
+  const completedMilestoneCount = contractList.reduce((total, contract) => total + (contract.completedMilestones || 0), 0);
+  const totalMilestoneCount = contractList.reduce((total, contract) => total + (contract.totalMilestones || 0), 0);
+  const nextMilestones = contractList
+    .flatMap((contract) => contract.milestones
+      .filter((milestone) => !['Approved', 'Completed'].includes(milestone.status))
+      .map((milestone) => ({ ...milestone, contractTitle: contract.title.en, contractId: contract.id })))
+    .slice(0, 4);
+  const recommendedJobs = jobList.filter((job) => `${job.status || 'open'}`.toLowerCase() === 'open').slice(0, 3);
+  const transactionBars = recentTransactions.slice(0, 6).reverse();
+  const maxTransactionAmount = Math.max(1, ...transactionBars.map((transaction) => transaction.amount || 0));
+  const completionRate = totalMilestoneCount > 0 ? Math.round((completedMilestoneCount / totalMilestoneCount) * 100) : 0;
+
   const dashboardLayout = (content) => (
-    <div className="min-h-screen bg-slate-100/80">
-      <div className="mx-auto flex w-full max-w-[1680px] gap-6 px-4 py-4 sm:px-6 xl:px-8">
+    <div className={`${activePage === 'chat' ? 'h-screen overflow-hidden' : 'min-h-screen'} bg-slate-100/80`}>
+      <div className={`mx-auto flex w-full max-w-[1680px] gap-6 px-4 py-4 sm:px-6 xl:px-8 ${activePage === 'chat' ? 'h-full overflow-hidden' : ''}`}>
         <Sidebar items={sidebarItems} activePage={activePage} onNavigate={setActivePage} labels={labels} />
-        <div className="min-w-0 flex-1 space-y-6">
+        <div className={`min-w-0 flex-1 ${activePage === 'chat' ? 'flex min-h-0 flex-col space-y-4 overflow-hidden' : 'space-y-6'}`}>
           <Topbar
             title={titles[activePage]}
             subtitle="Freelancer Protection & Trust Platform"
@@ -540,6 +683,7 @@ function FreelancerDashboard() {
             onOpenBankSettings={() => {
               setActivePage('bank');
             }}
+            onNotificationOpen={handleNotificationOpen}
             language={user?.settings?.language || 'en'}
             onLanguageChange={handleLanguageChange}
             copy={{ role: 'freelancer', logout: 'Logout' }}
@@ -664,7 +808,17 @@ function FreelancerDashboard() {
                   <h3 className="text-2xl font-bold text-ink">{selectedContract.title.en}</h3>
                   <p className="mt-2 flex items-center gap-2 text-slate-500"><UserRound className="h-4 w-4" />{selectedContract.client}</p>
                 </div>
-                <span className={`rounded-full px-3 py-1 text-sm font-semibold ${selectedContract.status === 'Completed' ? 'bg-emerald-100 text-emerald-700' : 'bg-indigo-100 text-indigo-700'}`}>{selectedContract.status}</span>
+                <div className="flex flex-wrap items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => cancelAcceptedJob(selectedContract)}
+                    className="inline-flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-4 py-2 text-sm font-semibold text-rose-700 transition hover:border-rose-300 hover:bg-rose-100"
+                  >
+                    <XCircle className="h-4 w-4" />
+                    Cancel Job
+                  </button>
+                  <span className={`rounded-full px-3 py-1 text-sm font-semibold ${selectedContract.status === 'Completed' ? 'bg-emerald-100 text-emerald-700' : 'bg-indigo-100 text-indigo-700'}`}>{selectedContract.status}</span>
+                </div>
               </div>
               <div className="mt-8 grid gap-6 md:grid-cols-2 xl:grid-cols-4">
                 <div><p className="text-sm text-slate-500">Total budget</p><p className="mt-2 text-2xl font-bold text-ink">{selectedContract.budget}</p></div>
@@ -699,7 +853,7 @@ function FreelancerDashboard() {
                           <button
                             onClick={() => {
                               if (hasSubmissionAsset(milestone)) {
-                                openReviewModal(milestone);
+                                openReviewModal(selectedContract, milestone, milestoneIndex);
                                 return;
                               }
 
@@ -893,14 +1047,24 @@ function FreelancerDashboard() {
                       <p className="text-sm font-semibold text-slate-700">Attachment</p>
                       <p className="mt-2 text-sm text-slate-500">{reviewModal.milestone.submission.fileName || 'No file attached'}</p>
                     </div>
-                    <a
-                      href={reviewModal.milestone.submission.fileDataUrl}
-                      download={reviewModal.milestone.submission.fileName || 'submission'}
-                      className="inline-flex items-center gap-2 rounded-xl bg-ink px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800"
-                    >
-                      <Download className="h-4 w-4" />
-                      Download file
-                    </a>
+                    <div className="flex flex-wrap gap-3">
+                      <a
+                        href={reviewModal.milestone.submission.fileDataUrl}
+                        download={reviewModal.milestone.submission.fileName || 'submission'}
+                        className="inline-flex items-center gap-2 rounded-xl bg-ink px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800"
+                      >
+                        <Download className="h-4 w-4" />
+                        Download file
+                      </a>
+                      <button
+                        type="button"
+                        onClick={() => removeSubmittedFile(reviewModal.contract, reviewModal.milestoneIndex)}
+                        className="inline-flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-4 py-2.5 text-sm font-semibold text-rose-700 transition hover:border-rose-300 hover:bg-rose-100"
+                      >
+                        <XCircle className="h-4 w-4" />
+                        Remove file
+                      </button>
+                    </div>
                   </div>
                 </div>
               ) : (
@@ -920,6 +1084,7 @@ function FreelancerDashboard() {
       <PaymentCenter
         mode="freelancer"
         balance={availableBalance}
+        pendingBalance={pendingBalance}
         walletAmount={walletAmount}
         onWalletAmountChange={setWalletAmount}
         walletLoading={walletLoading}
@@ -1183,7 +1348,7 @@ function FreelancerDashboard() {
       <ChatPanel
         currentUser={user}
         userName={user?.fullName || user?.email || 'Freelancer'}
-        initialThreadId={location.state?.initialThreadId || ''}
+        initialThreadId={notificationThreadId || location.state?.initialThreadId || ''}
         onDealUpdated={handleDealUpdated}
       />,
     );
@@ -1246,13 +1411,282 @@ function FreelancerDashboard() {
 
   return dashboardLayout(
     <div className="space-y-6">
-      <section className="grid gap-5 md:grid-cols-3">
-        {stats.map((stat) => <StatCard key={stat.label.en} {...stat} label={stat.label.en} hint={stat.hint.en} value={stat.label.en === 'Balance' ? formatMoney(availableBalance) : stat.value} />)}
+      <section className="grid gap-6 xl:grid-cols-[minmax(0,1.45fr)_minmax(360px,0.75fr)]">
+        <div className="relative overflow-hidden rounded-[34px] bg-[radial-gradient(circle_at_12%_15%,rgba(0,179,134,0.34),transparent_28%),linear-gradient(135deg,#07111f,#0B1020_48%,#11223d)] p-7 text-white shadow-[0_28px_80px_rgba(11,16,32,0.22)]">
+          <div className="absolute -right-20 top-10 h-64 w-64 rounded-full bg-emerald-400/20 blur-3xl" />
+          <div className="absolute bottom-0 right-0 h-44 w-72 rounded-tl-[80px] bg-white/5" />
+          <div className="relative">
+            <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+              <div>
+                <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/8 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.2em] text-emerald-100">
+                  <Sparkles className="h-3.5 w-3.5" />
+                  Freelancer workspace
+                </div>
+                <h1 className="mt-5 max-w-3xl text-4xl font-bold tracking-[-0.04em] text-white md:text-5xl">
+                  Build trust, deliver work, and track every payout clearly.
+                </h1>
+                <p className="mt-4 max-w-2xl text-sm leading-7 text-white/68">
+                  Your dashboard only shows live marketplace, contract, wallet, and transaction data from the platform.
+                </p>
+              </div>
+              <div className="rounded-[26px] border border-white/10 bg-white/8 p-5 text-right backdrop-blur">
+                <p className="text-xs uppercase tracking-[0.2em] text-white/45">Available balance</p>
+                <p className="mt-3 text-4xl font-bold tracking-tight">{formatMoney(availableBalance)}</p>
+                <div className="mt-4 inline-flex items-center gap-2 rounded-full bg-emerald-400/12 px-3 py-1.5 text-xs font-semibold text-emerald-100">
+                  <ArrowUpRight className="h-3.5 w-3.5" />
+                  Wallet ready
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-8 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              <button onClick={() => setActivePage('marketplace')} className="rounded-2xl border border-white/10 bg-white/8 p-4 text-left transition hover:-translate-y-0.5 hover:bg-white/12">
+                <BriefcaseBusiness className="h-5 w-5 text-emerald-200" />
+                <p className="mt-4 text-2xl font-bold">{recommendedJobs.length}</p>
+                <p className="mt-1 text-xs uppercase tracking-[0.16em] text-white/45">Open jobs</p>
+              </button>
+              <button onClick={() => setActivePage('contracts')} className="rounded-2xl border border-white/10 bg-white/8 p-4 text-left transition hover:-translate-y-0.5 hover:bg-white/12">
+                <FileCheck2 className="h-5 w-5 text-sky-200" />
+                <p className="mt-4 text-2xl font-bold">{activeContracts.length}</p>
+                <p className="mt-1 text-xs uppercase tracking-[0.16em] text-white/45">Active contracts</p>
+              </button>
+              <button onClick={() => setActivePage('contracts')} className="rounded-2xl border border-white/10 bg-white/8 p-4 text-left transition hover:-translate-y-0.5 hover:bg-white/12">
+                <TrendingUp className="h-5 w-5 text-violet-200" />
+                <p className="mt-4 text-2xl font-bold">{completionRate}%</p>
+                <p className="mt-1 text-xs uppercase tracking-[0.16em] text-white/45">Milestone progress</p>
+              </button>
+              <button onClick={() => setActivePage('escrow')} className="rounded-2xl border border-white/10 bg-white/8 p-4 text-left transition hover:-translate-y-0.5 hover:bg-white/12">
+                <WalletCards className="h-5 w-5 text-amber-200" />
+                <p className="mt-4 text-2xl font-bold">{formatMoney(pendingBalance)}</p>
+                <p className="mt-1 text-xs uppercase tracking-[0.16em] text-white/45">Pending escrow</p>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <SectionCard className="flex flex-col justify-between overflow-hidden p-6">
+          <div>
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="muted">Performance</p>
+                <h2 className="mt-1 text-2xl font-bold tracking-tight text-ink">Freelancer pulse</h2>
+              </div>
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-700">
+                <Shield className="h-5 w-5" />
+              </div>
+            </div>
+            <div className="mt-6 grid grid-cols-2 gap-3">
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <p className="text-xs uppercase tracking-[0.16em] text-slate-400">Contract value</p>
+                <p className="mt-3 text-2xl font-bold text-ink">{formatMoney(totalContractValue)}</p>
+              </div>
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <p className="text-xs uppercase tracking-[0.16em] text-slate-400">Earned</p>
+                <p className="mt-3 text-2xl font-bold text-emerald-600">{formatMoney(earnedValue)}</p>
+              </div>
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <p className="text-xs uppercase tracking-[0.16em] text-slate-400">Completed</p>
+                <p className="mt-3 text-2xl font-bold text-ink">{completedContracts.length}</p>
+              </div>
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <p className="text-xs uppercase tracking-[0.16em] text-slate-400">Milestones</p>
+                <p className="mt-3 text-2xl font-bold text-ink">{completedMilestoneCount}/{totalMilestoneCount}</p>
+              </div>
+            </div>
+          </div>
+          <div className="mt-6 rounded-[24px] border border-emerald-100 bg-emerald-50/70 p-4">
+            <div className="flex items-start gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white text-emerald-700 shadow-sm">
+                <CircleCheckBig className="h-5 w-5" />
+              </div>
+              <div>
+                <p className="font-semibold text-ink">Protected work mode is active</p>
+                <p className="mt-1 text-sm leading-6 text-slate-600">Milestone submissions, escrow releases, and payout history stay connected in one workflow.</p>
+              </div>
+            </div>
+          </div>
+        </SectionCard>
       </section>
-      <SectionCard className="p-6">
-        <div><p className="muted">Recent activities</p><h2 className="mt-1 text-xl font-bold text-ink">Platform overview</h2></div>
-        <div className="mt-6 space-y-4">{activities.map((activity) => <div key={activity.title.en} className="flex items-start gap-4 rounded-2xl border border-slate-200 bg-slate-50 p-4"><div className="mt-1 rounded-2xl bg-white p-3 shadow-sm"><activity.icon className="h-5 w-5 text-pine" /></div><div className="flex-1"><div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between"><h3 className="font-semibold text-slate-900">{activity.title.en}</h3><span className="text-sm text-slate-400">{activity.time.en}</span></div><p className="mt-1 text-sm leading-6 text-slate-600">{activity.description.en}</p></div></div>)}</div>
-      </SectionCard>
+
+      <section className="grid gap-6 xl:grid-cols-[minmax(0,1.1fr)_minmax(360px,0.9fr)]">
+        <SectionCard className="p-6">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <p className="muted">Work queue</p>
+              <h2 className="mt-1 text-2xl font-bold tracking-tight text-ink">Active contracts</h2>
+            </div>
+            <button onClick={() => setActivePage('contracts')} className="inline-flex items-center gap-2 rounded-full bg-ink px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800">
+              View contracts
+              <ArrowUpRight className="h-4 w-4" />
+            </button>
+          </div>
+
+          <div className="mt-6 space-y-4">
+            {activeContracts.slice(0, 4).map((contract) => (
+              <button
+                key={contract.id}
+                onClick={() => {
+                  setSelectedContractId(`${contract.id}`);
+                  setActivePage('contracts');
+                }}
+                className="group w-full rounded-[26px] border border-slate-200 bg-white p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-emerald-200 hover:shadow-[0_20px_50px_rgba(15,23,42,0.08)]"
+              >
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="truncate text-lg font-bold text-ink">{contract.title.en}</h3>
+                      <span className="rounded-full bg-indigo-50 px-3 py-1 text-xs font-semibold text-indigo-700">{contract.status}</span>
+                    </div>
+                    <p className="mt-1 text-sm text-slate-500">{contract.client}</p>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-6">
+                    <div>
+                      <p className="text-xs uppercase tracking-[0.16em] text-slate-400">Budget</p>
+                      <p className="mt-1 font-bold text-ink">{contract.budget}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs uppercase tracking-[0.16em] text-slate-400">Progress</p>
+                      <p className="mt-1 font-bold text-emerald-600">{contract.progress}%</p>
+                    </div>
+                  </div>
+                </div>
+                <div className="mt-5 h-2 overflow-hidden rounded-full bg-slate-100">
+                  <div className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-indigo-500 transition-all group-hover:from-emerald-400" style={{ width: `${contract.progress}%` }} />
+                </div>
+              </button>
+            ))}
+
+            {activeContracts.length === 0 ? (
+              <div className="rounded-[26px] border border-dashed border-slate-200 bg-slate-50 p-8 text-center">
+                <BriefcaseBusiness className="mx-auto h-9 w-9 text-slate-400" />
+                <h3 className="mt-4 text-lg font-bold text-ink">No active contracts yet</h3>
+                <p className="mt-2 text-sm leading-6 text-slate-500">Accepted jobs from MongoDB will appear here once you start working with a client.</p>
+                <button onClick={() => setActivePage('marketplace')} className="mt-5 rounded-full bg-pine px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700">
+                  Browse marketplace
+                </button>
+              </div>
+            ) : null}
+          </div>
+        </SectionCard>
+
+        <SectionCard className="p-6">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="muted">Money flow</p>
+              <h2 className="mt-1 text-2xl font-bold tracking-tight text-ink">Recent payout signal</h2>
+            </div>
+            <CircleDollarSign className="h-6 w-6 text-pine" />
+          </div>
+
+          <div className="mt-6 rounded-[28px] border border-slate-200 bg-slate-50 p-5">
+            <div className="flex h-48 items-end gap-3">
+              {transactionBars.length > 0 ? transactionBars.map((transaction, index) => {
+                const height = Math.max(18, Math.round(((transaction.amount || 0) / maxTransactionAmount) * 100));
+                return (
+                  <div key={`${transaction._id || transaction.createdAt || index}-bar`} className="flex flex-1 flex-col items-center gap-3">
+                    <div className="flex h-36 w-full items-end rounded-full bg-white p-1 shadow-inner">
+                      <div
+                        className={`w-full rounded-full ${transaction.type === 'withdrawal' ? 'bg-amber-400' : 'bg-gradient-to-t from-pine to-emerald-300'}`}
+                        style={{ height: `${height}%` }}
+                      />
+                    </div>
+                    <span className="text-[11px] font-semibold text-slate-400">{formatTransactionTime(transaction.createdAt).split(',')[0]}</span>
+                  </div>
+                );
+              }) : (
+                <div className="flex h-full w-full items-center justify-center rounded-3xl border border-dashed border-slate-200 bg-white text-center text-sm leading-6 text-slate-500">
+                  No transaction chart yet. Released payments and withdrawals will draw this chart automatically.
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="mt-5 space-y-3">
+            {recentTransactions.slice(0, 3).map((transaction, index) => {
+              const tone = getTransactionTone(transaction.type);
+              return (
+                <div key={`${transaction._id || transaction.createdAt || index}-dashboard`} className="flex items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-white px-4 py-3">
+                  <div className="min-w-0">
+                    <p className="font-semibold text-ink">{getTransactionLabel(transaction.type)}</p>
+                    <p className="truncate text-sm text-slate-500">{transaction.description || 'Wallet transaction recorded.'}</p>
+                  </div>
+                  <p className={`shrink-0 font-bold ${tone.amount}`}>{tone.sign}{formatMoney(transaction.amount || 0)}</p>
+                </div>
+              );
+            })}
+          </div>
+        </SectionCard>
+      </section>
+
+      <section className="grid gap-6 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
+        <SectionCard className="p-6">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="muted">Next steps</p>
+              <h2 className="mt-1 text-2xl font-bold tracking-tight text-ink">Upcoming milestones</h2>
+            </div>
+            <CalendarClock className="h-6 w-6 text-indigo-500" />
+          </div>
+
+          <div className="mt-6 space-y-3">
+            {nextMilestones.map((milestone, index) => (
+              <div key={`${milestone.contractId}-${milestone.title.en}-${index}`} className="rounded-2xl border border-slate-200 bg-white p-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <p className="font-semibold text-ink">{milestone.title.en}</p>
+                    <p className="mt-1 text-sm text-slate-500">{milestone.contractTitle}</p>
+                  </div>
+                  <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700">{milestone.status}</span>
+                </div>
+                <div className="mt-4 flex items-center justify-between text-sm">
+                  <span className="text-slate-500">Due {milestone.dueDate}</span>
+                  <span className="font-bold text-ink">{milestone.amount}</span>
+                </div>
+              </div>
+            ))}
+
+            {nextMilestones.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-6 text-sm leading-6 text-slate-500">
+                No pending milestones right now. When a contract has work to submit, it will show up here.
+              </div>
+            ) : null}
+          </div>
+        </SectionCard>
+
+        <SectionCard className="p-6">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <p className="muted">Marketplace</p>
+              <h2 className="mt-1 text-2xl font-bold tracking-tight text-ink">Fresh opportunities</h2>
+            </div>
+            <button onClick={() => setActivePage('marketplace')} className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-pine hover:text-pine">
+              Explore jobs
+              <ArrowUpRight className="h-4 w-4" />
+            </button>
+          </div>
+
+          <div className="mt-6 grid gap-3 lg:grid-cols-3">
+            {recommendedJobs.map((job) => (
+              <button
+                key={job.id || job.title}
+                onClick={() => navigate(`/freelancer-jobs/${job.id || job.title}`)}
+                className="rounded-[24px] border border-slate-200 bg-gradient-to-b from-white to-slate-50 p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-emerald-200 hover:shadow-[0_18px_40px_rgba(15,23,42,0.08)]"
+              >
+                <span className="rounded-full bg-emerald-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-700">{job.category || 'Job'}</span>
+                <h3 className="mt-4 line-clamp-2 text-base font-bold text-ink">{job.title}</h3>
+                <p className="mt-2 line-clamp-2 text-sm leading-6 text-slate-500">{job.client}</p>
+                <p className="mt-5 text-xl font-bold text-ink">{job.budget}</p>
+              </button>
+            ))}
+
+            {recommendedJobs.length === 0 ? (
+              <div className="rounded-[24px] border border-dashed border-slate-200 bg-slate-50 p-6 text-sm leading-6 text-slate-500 lg:col-span-3">
+                No open marketplace jobs from the database yet.
+              </div>
+            ) : null}
+          </div>
+        </SectionCard>
+      </section>
     </div>,
   );
 }

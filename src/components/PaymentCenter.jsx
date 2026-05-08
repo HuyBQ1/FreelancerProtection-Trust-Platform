@@ -19,6 +19,7 @@ import SectionCard from './SectionCard';
 function PaymentCenter({
   mode = 'client',
   balance = 0,
+  pendingBalance = 0,
   walletAmount,
   onWalletAmountChange,
   walletLoading,
@@ -37,10 +38,11 @@ function PaymentCenter({
   const title = isClient ? 'Client Payment Center' : 'Freelancer Payout Center';
   const eyebrow = isClient ? 'Workspace wallet' : 'Verified payouts';
   const trend = isClient ? '+12.4% vs last month' : '+8.1% vs last month';
-  const note = isClient
-    ? 'Use one shared balance for top-ups, milestone releases, invoices, and supplier payments.'
-    : 'Approved milestone releases land here first, then you can withdraw to your linked bank account.';
   const historyTitle = isClient ? 'Payment history' : 'Payout history';
+  const pendingLabel = isClient ? 'Pending escrow' : 'Pending payouts';
+  const pendingHint = isClient
+    ? 'Reserved for accepted jobs until milestone approval.'
+    : 'Approved work will move from pending to available balance.';
 
   const primaryActions = isClient
     ? [
@@ -99,13 +101,13 @@ function PaymentCenter({
                 </div>
               </div>
 
-              <div className="mt-7 grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(250px,0.72fr)]">
-                <div className="rounded-[22px] border border-white/10 bg-white/6 p-4">
+              <div className="mt-7 grid gap-4 lg:grid-cols-[minmax(0,1.05fr)_minmax(260px,0.95fr)]">
+                <div className="rounded-[22px] border border-white/10 bg-white/6 p-5">
                   <p className="text-[11px] uppercase tracking-[0.18em] text-white/50">Action amount</p>
                     <input
                       value={walletAmount}
                       onChange={(event) => onWalletAmountChange(event.target.value)}
-                      className="mt-3 w-full rounded-2xl border border-white/10 bg-white/10 px-4 py-3 text-sm text-white outline-none placeholder:text-white/40 focus:border-white/25"
+                      className="mt-3 w-full rounded-2xl border border-white/10 bg-white/10 px-4 py-3.5 text-sm text-white outline-none placeholder:text-white/40 focus:border-white/25"
                       placeholder="Enter amount, for example 500"
                     />
                   <div className="mt-4 grid gap-3 sm:grid-cols-2">
@@ -114,7 +116,7 @@ function PaymentCenter({
                         key={action.label}
                         onClick={action.onClick}
                         disabled={walletLoading}
-                        className={`inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-60 ${
+                        className={`inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl px-4 py-3 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-60 ${
                             action.tone === 'primary'
                               ? 'bg-[#00B386] text-white hover:bg-emerald-500'
                               : 'border border-white/12 bg-white text-[#0B1020] hover:bg-slate-100'
@@ -127,10 +129,16 @@ function PaymentCenter({
                     </div>
                   </div>
 
-                  <div className="rounded-[22px] border border-white/10 bg-white/6 p-4">
-                    <p className="text-[11px] uppercase tracking-[0.18em] text-white/50">Usage note</p>
-                    <p className="mt-3 text-sm leading-7 text-white/70">{note}</p>
+                  <div className="rounded-[22px] border border-white/10 bg-white/6 p-5">
+                    <p className="text-[11px] uppercase tracking-[0.18em] text-white/50">{pendingLabel}</p>
+                    <p className="mt-3 text-4xl font-bold text-white">{formatMoney(pendingBalance)}</p>
+                    <p className="mt-3 text-xs leading-5 text-white/55">{pendingHint}</p>
+                    <div className="mt-4 inline-flex items-center gap-2 rounded-full bg-amber-300/10 px-3 py-1.5 text-xs font-semibold text-amber-100">
+                      <Clock3 className="h-3.5 w-3.5" />
+                      Pending
+                    </div>
                   </div>
+
                 </div>
 
                 {walletStatus?.message ? (
@@ -263,7 +271,9 @@ function PaymentCenter({
                       </div>
                       <div className="text-right">
                         <p className={`text-sm font-semibold ${tone.amount}`}>{tone.sign}{formatMoney(transaction.amount || 0)}</p>
-                        <p className="mt-2 text-[11px] uppercase tracking-[0.16em] text-slate-400">Completed</p>
+                        <p className={`mt-2 text-[11px] uppercase tracking-[0.16em] ${transaction.status === 'pending' ? 'text-amber-500' : 'text-slate-400'}`}>
+                          {transaction.status === 'pending' ? 'Pending' : 'Completed'}
+                        </p>
                       </div>
                     </div>
                   );
