@@ -1,4 +1,4 @@
-﻿import { ensureEmailIsAvailable } from '../services/accountService.js';
+﻿import { ensureEmailIsAvailable, findAccountByIdAndRole } from '../services/accountService.js';
 
 function sanitizeUser(user) {
   return {
@@ -15,10 +15,58 @@ function sanitizeUser(user) {
   };
 }
 
+function sanitizePublicProfile(user) {
+  const freelancerProfile = user.settings?.freelancerProfile || {};
+
+  return {
+    id: user._id,
+    email: user.email,
+    role: user.role,
+    fullName: user.fullName || user.email || '',
+    avatar: user.avatar || '',
+    headline: user.headline || freelancerProfile.headline || '',
+    settings: {
+      freelancerProfile: {
+        headline: freelancerProfile.headline || user.headline || '',
+        skills: Array.isArray(freelancerProfile.skills) ? freelancerProfile.skills : [],
+        portfolioUrl: freelancerProfile.portfolioUrl || '',
+        cvFileName: freelancerProfile.cvFileName || '',
+        cvFileType: freelancerProfile.cvFileType || '',
+        cvDataUrl: freelancerProfile.cvDataUrl || '',
+      },
+    },
+    createdAt: user.createdAt,
+    updatedAt: user.updatedAt,
+  };
+}
+
 export async function getProfile(req, res) {
   res.status(200).json({
     message: 'Profile fetched successfully',
     user: sanitizeUser(req.user),
+  });
+}
+
+export async function getPublicProfile(req, res) {
+  const { role, userId } = req.params;
+
+  if (!['client', 'freelancer'].includes(role)) {
+    const error = new Error('Unsupported profile role');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const { account } = await findAccountByIdAndRole(userId, role);
+
+  if (!account) {
+    const error = new Error('Profile not found');
+    error.statusCode = 404;
+    throw error;
+  }
+
+  res.status(200).json({
+    message: 'Profile fetched successfully',
+    user: sanitizePublicProfile(account),
   });
 }
 
@@ -86,6 +134,69 @@ export async function updateAvatar(req, res) {
   });
 }
 
+export async function updateCv(req, res) {
+  const { cvFileName, cvFileType, cvDataUrl } = req.body;
+
+  if (!cvFileName || typeof cvFileName !== 'string') {
+    const error = new Error('CV file name is required');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  if (!cvDataUrl || typeof cvDataUrl !== 'string') {
+    const error = new Error('CV file data is required');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  if (!cvDataUrl.startsWith('data:')) {
+    const error = new Error('CV must be uploaded as a valid file data URL');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const user = await req.accountModel.findByIdAndUpdate(
+    req.user._id,
+    {
+      $set: {
+        'settings.freelancerProfile.cvFileName': cvFileName.trim(),
+        'settings.freelancerProfile.cvFileType': typeof cvFileType === 'string' ? cvFileType.trim() : '',
+        'settings.freelancerProfile.cvDataUrl': cvDataUrl,
+      },
+    },
+    { new: true },
+  ).select('-password');
+
+  res.status(200).json({
+    message: 'CV uploaded successfully',
+    user: sanitizeUser(user),
+  });
+}
+
+export async function getCv(req, res) {
+  const { role, userId } = req.params;
+  const { account } = await findAccountByIdAndRole(userId, role);
+
+  if (!account) {
+    const error = new Error('Profile not found');
+    error.statusCode = 404;
+    throw error;
+  }
+
+  const profile = account.settings?.freelancerProfile || {};
+  if (!profile.cvDataUrl) {
+    const error = new Error('CV not found');
+    error.statusCode = 404;
+    throw error;
+  }
+
+  res.status(200).json({
+    cvFileName: profile.cvFileName || 'cv',
+    cvFileType: profile.cvFileType || '',
+    cvDataUrl: profile.cvDataUrl,
+  });
+}
+
 export async function updateUserSettings(req, res) {
   const { roleSettings, notifications, language, bankAccount } = req.body;
   const updates = {};
@@ -123,6 +234,15 @@ export async function updateUserSettings(req, res) {
     }
     if (typeof roleSettings.portfolioUrl === 'string') {
       updates['settings.freelancerProfile.portfolioUrl'] = roleSettings.portfolioUrl.trim();
+    }
+    if (typeof roleSettings.cvFileName === 'string') {
+      updates['settings.freelancerProfile.cvFileName'] = roleSettings.cvFileName.trim();
+    }
+    if (typeof roleSettings.cvFileType === 'string') {
+      updates['settings.freelancerProfile.cvFileType'] = roleSettings.cvFileType.trim();
+    }
+    if (typeof roleSettings.cvDataUrl === 'string') {
+      updates['settings.freelancerProfile.cvDataUrl'] = roleSettings.cvDataUrl;
     }
     if (Array.isArray(roleSettings.skills)) {
       updates['settings.freelancerProfile.skills'] = roleSettings.skills

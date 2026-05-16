@@ -13,7 +13,9 @@ const ReviewPanel = ({
     contractId,
     milestoneId,
     recipientId,
+    language = 'en',
 }) => {
+    const isVietnamese = language === 'vi';
     const [rating, setRating] = useState({
         communication: 0,
         quality: 0,
@@ -32,10 +34,10 @@ const ReviewPanel = ({
     const [loading, setLoading] = useState(false);
 
     const ratingCategories = [
-        { key: 'communication', label: 'Communication' },
-        { key: 'quality', label: 'Quality of Work' },
-        { key: 'timeliness', label: 'Timeliness' },
-        { key: 'professionalism', label: 'Professionalism' },
+        { key: 'communication', label: isVietnamese ? 'Giao tiếp' : 'Communication' },
+        { key: 'quality', label: isVietnamese ? 'Chất lượng công việc' : 'Quality of Work' },
+        { key: 'timeliness', label: isVietnamese ? 'Đúng hạn' : 'Timeliness' },
+        { key: 'professionalism', label: isVietnamese ? 'Tác phong chuyên nghiệp' : 'Professionalism' },
     ];
 
     const handleRatingClick = (category, value) => {
@@ -57,11 +59,11 @@ const ReviewPanel = ({
             rating.timeliness === 0 ||
             rating.professionalism === 0
         ) {
-            alert('Please rate all categories');
+            alert(isVietnamese ? 'Vui lòng chấm điểm đầy đủ tất cả tiêu chí' : 'Please rate all categories');
             return;
         }
         if (!contractId || !milestoneId || !recipientId) {
-            alert('Missing IDs!');
+            alert(isVietnamese ? 'Thiếu thông tin đánh giá' : 'Missing IDs!');
             return;
         }
 
@@ -90,16 +92,16 @@ const ReviewPanel = ({
             if (!response.ok) {
                 const err = await response.json();
                 console.error(err);
-                throw new Error(err.message || 'Failed to create review');
+                throw new Error(err.message || (isVietnamese ? 'Không thể gửi đánh giá' : 'Failed to create review'));
             }
 
             await response.json();
-            alert('Review submitted successfully!');
+            alert(isVietnamese ? 'Đánh giá đã được gửi thành công!' : 'Review submitted successfully!');
             onSubmitted?.();
             handleClose();
         } catch (error) {
             console.error('Error:', error);
-            alert('Error submitting review: ' + error.message);
+            alert((isVietnamese ? 'Lỗi khi gửi đánh giá: ' : 'Error submitting review: ') + error.message);
         } finally {
             setLoading(false);
         }
@@ -125,11 +127,11 @@ const ReviewPanel = ({
                 {/* Header */}
                 <div className="flex items-center justify-between border-b border-slate-200 pb-4">
                     <div>
-                        <h2 className="text-xl font-bold text-slate-900">Review Product</h2>
+                        <h2 className="text-xl font-bold text-slate-900">{isVietnamese ? 'Đánh giá freelancer' : 'Review Product'}</h2>
                         <p className="mt-1 text-sm text-slate-600">
                             {contractTitle} - {milestoneTitle}
                         </p>
-                        <p className="mt-1 text-sm text-slate-600">Reviewing: {recipientName}</p>
+                        <p className="mt-1 text-sm text-slate-600">{isVietnamese ? 'Đang đánh giá:' : 'Reviewing:'} {recipientName}</p>
                     </div>
                     <button
                         onClick={handleClose}
@@ -172,25 +174,25 @@ const ReviewPanel = ({
                 {/* Comment Section */}
                 <div className="mt-6">
                     <label className="block text-sm font-semibold text-slate-900">
-                        Additional Comments (Optional)
+                        {isVietnamese ? 'Nhận xét thêm (không bắt buộc)' : 'Additional Comments (Optional)'}
                     </label>
                     <textarea
                         value={comment}
                         onChange={(e) => setComment(e.target.value)}
                         maxLength={1000}
                         rows={4}
-                        placeholder="Share your experience working with this person..."
+                        placeholder={isVietnamese ? 'Chia sẻ trải nghiệm khi làm việc với freelancer này...' : 'Share your experience working with this person...'}
                         className="mt-2 w-full rounded-lg border border-slate-300 px-4 py-2 text-sm placeholder-slate-400 focus:border-teal-600 focus:outline-none"
                     />
                     <p className="mt-1 text-xs text-slate-500">
-                        {comment.length}/1000 characters
+                        {comment.length}/1000 {isVietnamese ? 'ký tự' : 'characters'}
                     </p>
                 </div>
 
                 {/* Visibility Section */}
                 <div className="mt-6">
                     <label className="block text-sm font-semibold text-slate-900">
-                        Review Visibility
+                        {isVietnamese ? 'Hiển thị đánh giá' : 'Review Visibility'}
                     </label>
                     <div className="mt-2 space-y-2">
                         <label className="flex items-center">
@@ -203,7 +205,7 @@ const ReviewPanel = ({
                                 className="h-4 w-4"
                             />
                             <span className="ml-3 text-sm text-slate-700">
-                                Public - Visible on profile
+                                {isVietnamese ? 'Công khai - Hiển thị trên hồ sơ' : 'Public - Visible on profile'}
                             </span>
                         </label>
                         <label className="flex items-center">
@@ -216,7 +218,7 @@ const ReviewPanel = ({
                                 className="h-4 w-4"
                             />
                             <span className="ml-3 text-sm text-slate-700">
-                                Private - Only visible to the recipient and admins
+                                {isVietnamese ? 'Riêng tư - Chỉ người nhận và quản trị viên nhìn thấy' : 'Private - Only visible to the recipient and admins'}
                             </span>
                         </label>
                     </div>
@@ -229,14 +231,14 @@ const ReviewPanel = ({
                         disabled={loading}
                         className="flex-1 rounded-lg border border-slate-300 px-4 py-3 font-semibold text-slate-700 transition-colors hover:bg-slate-50 disabled:opacity-50"
                     >
-                        Cancel
+                        {isVietnamese ? 'Hủy' : 'Cancel'}
                     </button>
                     <button
                         onClick={handleSubmit}
                         disabled={loading}
                         className="flex-1 rounded-lg bg-teal-600 px-4 py-3 font-semibold text-white transition-colors hover:bg-teal-700 disabled:opacity-50"
                     >
-                        {loading ? 'Submitting...' : 'Submit Review'}
+                        {loading ? (isVietnamese ? 'Đang gửi...' : 'Submitting...') : (isVietnamese ? 'Gửi đánh giá' : 'Submit Review')}
                     </button>
                 </div>
             </div>

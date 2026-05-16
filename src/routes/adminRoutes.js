@@ -1,6 +1,8 @@
 import { Router } from 'express';
 import {
+  deleteAdminReview,
   getAdminOverview,
+  updateAdminReviewStatus,
   updateJobModeration,
   updateTransactionStatus,
   updateUserModeration,
@@ -16,5 +18,7 @@ router.get('/overview', asyncHandler(getAdminOverview));
 router.patch('/users/:role/:userId/moderation', asyncHandler(updateUserModeration));
 router.patch('/jobs/:jobId/moderation', asyncHandler(updateJobModeration));
 router.patch('/transactions/:transactionId/status', asyncHandler(updateTransactionStatus));
+router.patch('/reviews/:reviewId/status', asyncHandler(updateAdminReviewStatus));
+router.delete('/reviews/:reviewId', asyncHandler(deleteAdminReview));
 
 export default router;

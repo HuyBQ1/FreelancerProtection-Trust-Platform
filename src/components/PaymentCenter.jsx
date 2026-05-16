@@ -1,20 +1,17 @@
-import {
+﻿import {
   ArrowDownLeft,
   ArrowUpRight,
-  Banknote,
-  BarChart3,
   Clock3,
-  CreditCard,
   FileText,
   Landmark,
   LockKeyhole,
-  Receipt,
   Send,
   ShieldCheck,
   Sparkles,
   Wallet,
 } from 'lucide-react';
 import SectionCard from './SectionCard';
+import { getStoredLanguage } from '../utils/language';
 
 function PaymentCenter({
   mode = 'client',
@@ -34,70 +31,75 @@ function PaymentCenter({
   onWithdraw,
   onOpenBank,
 }) {
+  const isVietnamese = getStoredLanguage() === 'vi';
   const isClient = mode === 'client';
-  const title = isClient ? 'Client Payment Center' : 'Freelancer Payout Center';
-  const eyebrow = isClient ? 'Workspace wallet' : 'Verified payouts';
+  const localTransactionLabel = (type) => {
+    if (type === 'topup') return isVietnamese ? 'Nạp tiền' : 'Top Up';
+    if (type === 'deposit') return isVietnamese ? 'Tạo ký quỹ' : 'Create Deposit';
+    if (type === 'release') return isVietnamese ? 'Giải ngân' : 'Release Payment';
+    if (type === 'withdrawal') return isVietnamese ? 'Rút tiền' : 'Withdrawal';
+    return getTransactionLabel?.(type) || (isVietnamese ? 'Giao dịch' : 'Transaction');
+  };
+  const localTransactionDescription = (transaction) => {
+    const description = transaction?.description || '';
+    if (!description) return isVietnamese ? 'Đã ghi nhận giao dịch số dư.' : 'Wallet transaction recorded.';
+    if (!isVietnamese) return description;
+    if (description.includes('Withdrawal to linked bank account')) return 'Rút tiền về tài khoản ngân hàng đã liên kết';
+    if (description.includes('Pending milestone payment for job:')) return description.replace('Pending milestone payment for job:', 'Thanh toán milestone đang chờ xử lý cho công việc:');
+    if (description.includes('Milestone approved and paid for job:')) return description.replace('Milestone approved and paid for job:', 'Milestone đã được duyệt và thanh toán cho công việc:');
+    if (description.includes('Wallet transaction recorded.')) return 'Đã ghi nhận giao dịch số dư.';
+    if (description.includes('Top up')) return description.replace('Top up', 'Nạp tiền');
+    if (description.includes('Release payment')) return description.replace('Release payment', 'Giải ngân');
+    if (description.includes('Withdrawal')) return description.replace('Withdrawal', 'Rút tiền');
+    return description;
+  };
+  const title = isVietnamese
+    ? (isClient ? 'Trung tâm thanh toán khách hàng' : 'Trung tâm rút tiền freelancer')
+    : (isClient ? 'Client Payment Center' : 'Freelancer Payout Center');
+  const eyebrow = isVietnamese
+    ? (isClient ? 'Ví trong không gian làm việc' : 'Rút tiền đã xác minh')
+    : (isClient ? 'Workspace wallet' : 'Verified payouts');
   const trend = isClient ? '+12.4% vs last month' : '+8.1% vs last month';
-  const historyTitle = isClient ? 'Payment history' : 'Payout history';
-  const pendingLabel = isClient ? 'Pending escrow' : 'Pending payouts';
+  const historyTitle = isVietnamese
+    ? (isClient ? 'Lịch sử thanh toán' : 'Lịch sử rút tiền')
+    : (isClient ? 'Payment history' : 'Payout history');
+  const pendingLabel = isVietnamese
+    ? (isClient ? 'Khoản chờ xử lý' : 'Khoản chờ rút')
+    : (isClient ? 'Pending escrow' : 'Pending payouts');
   const pendingHint = isClient
-    ? 'Reserved for accepted jobs until milestone approval.'
-    : 'Approved work will move from pending to available balance.';
+    ? (isVietnamese ? 'Được giữ cho các công việc đã nhận cho tới khi milestone được duyệt.' : 'Reserved for accepted jobs until milestone approval.')
+    : (isVietnamese ? 'Công việc đã được duyệt sẽ chuyển từ chờ xử lý sang số dư khả dụng.' : 'Approved work will move from pending to available balance.');
 
   const primaryActions = isClient
     ? [
-        { label: 'Top Up', icon: Wallet, onClick: onTopUp, tone: 'primary' },
-        { label: 'Release Payment', icon: Send, onClick: onRelease, tone: 'secondary' },
+        { label: isVietnamese ? 'Nạp tiền' : 'Top Up', icon: Wallet, onClick: onTopUp, tone: 'primary' },
+        { label: isVietnamese ? 'Thanh toán' : 'Release Payment', icon: Send, onClick: onRelease, tone: 'secondary' },
       ]
     : [
-        { label: 'Withdraw Funds', icon: ArrowDownLeft, onClick: onWithdraw, tone: 'primary' },
-        { label: 'Open Bank Account', icon: Landmark, onClick: onOpenBank, tone: 'secondary' },
+        { label: isVietnamese ? 'Rút tiền' : 'Withdraw Funds', icon: ArrowDownLeft, onClick: onWithdraw, tone: 'primary' },
+        { label: isVietnamese ? 'Mở tài khoản ngân hàng' : 'Open Bank Account', icon: Landmark, onClick: onOpenBank, tone: 'secondary' },
       ];
-
-  const smartActions = [
-    { label: 'Send payment', icon: Send, hint: 'Move funds to an approved counterparty.' },
-    { label: 'Milestone payout', icon: Banknote, hint: 'Prepare a release for approved work.' },
-    { label: 'Request invoice', icon: Receipt, hint: 'Collect billing records for finance.' },
-    { label: 'Payment method', icon: CreditCard, hint: 'Manage cards and bank rails.' },
-  ];
-
-  const chartBars = [42, 58, 52, 75, 68, 90];
-  const distribution = [
-    ['Design', '38%', 'bg-emerald-500'],
-    ['Engineering', '34%', 'bg-sky-500'],
-    ['Security', '18%', 'bg-indigo-500'],
-    ['Other', '10%', 'bg-slate-300'],
-  ];
 
   return (
     <div className="space-y-6">
       <div className="grid gap-6 xl:grid-cols-[1.08fr_0.92fr] xl:items-start">
-        <div className="flex h-full flex-col gap-6">
+        <div className="flex flex-col gap-6">
           <SectionCard className="overflow-hidden border border-white/70 bg-white/75 p-0 shadow-[0_24px_70px_rgba(11,16,32,0.08)] backdrop-blur-xl">
             <div className="relative overflow-hidden rounded-[24px] bg-[radial-gradient(circle_at_top_left,rgba(0,179,134,0.2),transparent_30%),linear-gradient(145deg,#0B1020,#111A31_58%,#0E1630)] px-7 py-7 text-white">
               <div className="absolute inset-y-0 right-0 w-72 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.12),transparent_60%)]" />
               <div className="relative">
-              <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
+              <div>
                 <div>
                   <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/6 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-white/55">
                     <Sparkles className="h-3.5 w-3.5 text-emerald-300" />
                       {eyebrow}
                     </div>
                     <h2 className="mt-5 text-2xl font-bold text-white">{title}</h2>
-                    <p className="mt-4 text-6xl font-bold tracking-tight text-white">{formatMoney(balance)}</p>
+                    <p className="mt-4 whitespace-nowrap text-4xl font-bold tracking-tight text-white sm:text-5xl xl:text-6xl">{formatMoney(balance)}</p>
                     <div className="mt-4 inline-flex items-center gap-2 rounded-full border border-emerald-400/20 bg-emerald-400/10 px-3 py-1.5 text-xs font-semibold text-emerald-200">
                       <ArrowUpRight className="h-3.5 w-3.5" />
                       {trend}
                   </div>
-                </div>
-
-                <div className="rounded-2xl border border-white/10 bg-white/6 p-4 text-left lg:text-right">
-                  <p className="text-[11px] uppercase tracking-[0.16em] text-white/45">Security posture</p>
-                  <div className="mt-3 inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1.5 text-xs font-semibold text-white/85">
-                    <ShieldCheck className="h-3.5 w-3.5 text-emerald-300" />
-                    Protected
-                  </div>
-                  <p className="mt-3 text-xs leading-5 text-white/55">Fraud monitoring, verified identities, and release controls are active.</p>
                 </div>
               </div>
 
@@ -108,7 +110,7 @@ function PaymentCenter({
                       value={walletAmount}
                       onChange={(event) => onWalletAmountChange(event.target.value)}
                       className="mt-3 w-full rounded-2xl border border-white/10 bg-white/10 px-4 py-3.5 text-sm text-white outline-none placeholder:text-white/40 focus:border-white/25"
-                      placeholder="Enter amount, for example 500"
+                      placeholder={isVietnamese ? 'Nhập số tiền, ví dụ 500000' : 'Enter amount, for example 500000'}
                     />
                   <div className="mt-4 grid gap-3 sm:grid-cols-2">
                     {primaryActions.map((action) => (
@@ -135,7 +137,7 @@ function PaymentCenter({
                     <p className="mt-3 text-xs leading-5 text-white/55">{pendingHint}</p>
                     <div className="mt-4 inline-flex items-center gap-2 rounded-full bg-amber-300/10 px-3 py-1.5 text-xs font-semibold text-amber-100">
                       <Clock3 className="h-3.5 w-3.5" />
-                      Pending
+                      {isVietnamese ? 'Chờ xử lý' : 'Pending'}
                     </div>
                   </div>
 
@@ -146,103 +148,33 @@ function PaymentCenter({
                     {walletStatus.message}
                   </p>
                 ) : null}
+
               </div>
             </div>
           </SectionCard>
 
-          <SectionCard className="border border-white/70 bg-white/75 p-6 shadow-[0_18px_60px_rgba(11,16,32,0.06)] backdrop-blur-xl">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <p className="muted">Smart actions</p>
-                <h2 className="mt-1 text-xl font-bold text-ink">Payment shortcuts</h2>
-              </div>
-              <div className="rounded-full bg-[#0B1020] px-3 py-1 text-xs font-semibold text-white">Recommended</div>
-            </div>
-            <div className="mt-6 grid gap-3 sm:grid-cols-2">
-              {smartActions.map((action) => (
-                <button key={action.label} className="rounded-[22px] border border-slate-200 bg-slate-50/80 p-4 text-left transition hover:-translate-y-0.5 hover:border-slate-300 hover:bg-white hover:shadow-sm">
-                  <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-700">
-                    <action.icon className="h-5 w-5" />
-                  </div>
-                  <p className="mt-4 text-sm font-semibold text-ink">{action.label}</p>
-                  <p className="mt-2 text-sm leading-6 text-slate-500">{action.hint}</p>
-                </button>
-              ))}
-            </div>
-          </SectionCard>
-
-          <SectionCard className="border border-white/70 bg-white/75 p-6 shadow-[0_18px_60px_rgba(11,16,32,0.06)] backdrop-blur-xl">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <p className="muted">Analytics</p>
-                <h2 className="mt-1 text-xl font-bold text-ink">Cash flow overview</h2>
-              </div>
-              <BarChart3 className="h-5 w-5 text-slate-400" />
-            </div>
-            <div className="mt-6 grid gap-5 lg:grid-cols-[minmax(0,1fr)_230px]">
-              <div className="rounded-[24px] border border-slate-200 bg-[#F8FAFD] p-5">
-                <div className="flex items-end justify-between gap-3">
-                  <div>
-                    <p className="text-sm font-semibold text-ink">Monthly cash flow</p>
-                    <p className="mt-1 text-xs text-slate-500">Rolling 6-month movement</p>
-                  </div>
-                  <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-700">Healthy</span>
-                </div>
-                <div className="mt-6 flex h-40 items-end gap-3">
-                  {chartBars.map((value, index) => (
-                    <div key={`${value}-${index}`} className="flex flex-1 flex-col items-center gap-2">
-                      <div className="flex h-32 w-full items-end rounded-2xl bg-white/80 p-1">
-                        <div
-                          className={`w-full rounded-[14px] ${index === chartBars.length - 1 ? 'bg-gradient-to-t from-[#00B386] to-emerald-300' : 'bg-gradient-to-t from-slate-300 to-slate-200'}`}
-                          style={{ height: `${value}%` }}
-                        />
-                      </div>
-                      <span className="text-[11px] text-slate-400">{['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'][index]}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="rounded-[24px] border border-slate-200 bg-white p-4">
-                <p className="text-[11px] uppercase tracking-[0.16em] text-slate-400">Distribution</p>
-                <div className="mt-4 space-y-3">
-                  {distribution.map(([label, value, color]) => (
-                    <div key={label}>
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="text-slate-600">{label}</span>
-                        <span className="font-semibold text-ink">{value}</span>
-                      </div>
-                      <div className="mt-2 h-2 rounded-full bg-slate-100">
-                        <div className={`h-full rounded-full ${color}`} style={{ width: value }} />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </SectionCard>
         </div>
 
         <div className="space-y-6">
           <SectionCard className="border border-white/70 bg-white/70 p-6 shadow-[0_18px_60px_rgba(11,16,32,0.06)] backdrop-blur-xl">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <p className="muted">Transactions</p>
+                <p className="muted">{isVietnamese ? 'Giao dịch' : 'Transactions'}</p>
                 <h2 className="mt-1 text-xl font-bold text-ink">{historyTitle}</h2>
               </div>
               <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs text-slate-500">
-                {recentTransactions.length} items
+                {recentTransactions.length} {isVietnamese ? 'mục' : 'items'}
               </span>
             </div>
 
-            <div className="mt-6 flex max-h-[620px] min-h-[430px] flex-col rounded-[28px] border border-slate-200 bg-gradient-to-b from-slate-50 to-white p-5">
+            <div className="mt-6 flex max-h-[390px] min-h-[320px] flex-col rounded-[28px] border border-slate-200 bg-gradient-to-b from-slate-50 to-white p-5">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <p className="text-xs uppercase tracking-[0.18em] text-slate-400">Latest activity</p>
-                  <p className="mt-2 text-lg font-semibold text-ink">Live ledger</p>
+                  <p className="text-xs uppercase tracking-[0.18em] text-slate-400">{isVietnamese ? 'Hoạt động mới nhất' : 'Latest activity'}</p>
+                  <p className="mt-2 text-lg font-semibold text-ink">{isVietnamese ? 'Sổ giao dịch trực tiếp' : 'Live ledger'}</p>
                 </div>
                 <div className="rounded-full border border-slate-200 bg-white px-3 py-1 text-[11px] font-semibold text-slate-500">
-                  Updated now
+                  {isVietnamese ? 'Vừa cập nhật' : 'Updated now'}
                 </div>
               </div>
 
@@ -259,20 +191,20 @@ function PaymentCenter({
                       </div>
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-2">
-                          <span className="text-sm font-semibold text-ink">{getTransactionLabel(transaction.type)}</span>
+                          <span className="text-sm font-semibold text-ink">{localTransactionLabel(transaction.type)}</span>
                           <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] ${tone.badge}`}>
-                            {isPositive ? 'Incoming' : 'Outgoing'}
+                            {isPositive ? (isVietnamese ? 'Vào' : 'Incoming') : (isVietnamese ? 'Ra' : 'Outgoing')}
                           </span>
                         </div>
                         <p className="mt-1 text-sm leading-6 text-slate-500">
-                          {transaction.description || 'Wallet transaction recorded.'}
+                          {localTransactionDescription(transaction)}
                         </p>
                         <p className="mt-2 text-xs text-slate-400">{formatTransactionTime(transaction.createdAt)}</p>
                       </div>
                       <div className="text-right">
                         <p className={`text-sm font-semibold ${tone.amount}`}>{tone.sign}{formatMoney(transaction.amount || 0)}</p>
                         <p className={`mt-2 text-[11px] uppercase tracking-[0.16em] ${transaction.status === 'pending' ? 'text-amber-500' : 'text-slate-400'}`}>
-                          {transaction.status === 'pending' ? 'Pending' : 'Completed'}
+                          {transaction.status === 'pending' ? (isVietnamese ? 'Chờ xử lý' : 'Pending') : (isVietnamese ? 'Hoàn tất' : 'Completed')}
                         </p>
                       </div>
                     </div>
@@ -281,63 +213,21 @@ function PaymentCenter({
 
                 {recentTransactions.length === 0 ? (
                   <div className="flex min-h-full items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-white px-5 text-center text-sm leading-6 text-slate-500">
-                    No transaction history yet.
+                      {isVietnamese ? 'Chưa có lịch sử giao dịch.' : 'No transaction history yet.'}
                   </div>
                 ) : null}
               </div>
             </div>
           </SectionCard>
 
-          <SectionCard className="border border-white/70 bg-white/75 p-6 shadow-[0_18px_60px_rgba(11,16,32,0.06)] backdrop-blur-xl">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <p className="muted">Operations</p>
-                <h2 className="mt-1 text-xl font-bold text-ink">Upcoming releases</h2>
-              </div>
-              <Clock3 className="h-5 w-5 text-slate-400" />
-            </div>
-            <div className="mt-6 space-y-3">
-              {[
-                ['Mobile App UI Design', '$1,600', 'Due today'],
-                ['Brand Identity Package', '$900', 'Due May 10'],
-                ['Dashboard QA Review', '$740', 'Due May 14'],
-              ].map(([label, amount, due]) => (
-                <div key={label} className="flex items-center justify-between gap-4 rounded-[22px] border border-slate-200 bg-slate-50/80 px-4 py-4">
-                  <div>
-                    <p className="text-sm font-semibold text-ink">{label}</p>
-                    <p className="mt-1 text-xs text-slate-500">{due}</p>
-                  </div>
-                  <p className="text-sm font-semibold text-ink">{amount}</p>
-                </div>
-              ))}
-            </div>
-            <div className="mt-5 rounded-[24px] border border-emerald-100 bg-emerald-50/70 p-4">
-              <div className="flex items-start gap-3">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white text-emerald-700 shadow-sm">
-                  <ShieldCheck className="h-5 w-5" />
-                </div>
-                <div>
-                  <p className="text-sm font-semibold text-ink">Release controls active</p>
-                  <p className="mt-2 text-sm leading-6 text-slate-600">
-                    Upcoming payments stay protected until work is reviewed and the authorized party confirms release.
-                  </p>
-                </div>
-              </div>
-            </div>
-          </SectionCard>
-
-          <div className="px-2 pb-2">
-            <p className="text-xs uppercase tracking-[0.18em] text-slate-400">Payment operations</p>
-            <h2 className="mt-2 text-2xl font-bold text-ink">Ready for the next release</h2>
-          </div>
         </div>
       </div>
 
       <div className="grid gap-4 md:grid-cols-3">
         {[
-          ['Protected payments', ShieldCheck, 'Release controls and audit trail enabled.'],
-          ['Fraud protection', LockKeyhole, 'Risk checks run before sensitive movement.'],
-          ['Verified records', FileText, 'Invoices and payout records stay attached.'],
+          [isVietnamese ? 'Thanh toán được bảo vệ' : 'Protected payments', ShieldCheck, isVietnamese ? 'Kiểm soát giải ngân và nhật ký kiểm tra đang được bật.' : 'Release controls and audit trail enabled.'],
+          [isVietnamese ? 'Chống gian lận' : 'Fraud protection', LockKeyhole, isVietnamese ? 'Kiểm tra rủi ro được chạy trước các thao tác nhạy cảm.' : 'Risk checks run before sensitive movement.'],
+          [isVietnamese ? 'Hồ sơ đã xác minh' : 'Verified records', FileText, isVietnamese ? 'Hóa đơn và lịch sử rút tiền luôn được đính kèm.' : 'Invoices and payout records stay attached.'],
         ].map(([label, Icon, hint]) => (
           <div key={label} className="rounded-[24px] border border-slate-200 bg-white/80 p-5 shadow-sm backdrop-blur">
             <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-700">
@@ -353,3 +243,5 @@ function PaymentCenter({
 }
 
 export default PaymentCenter;
+
+

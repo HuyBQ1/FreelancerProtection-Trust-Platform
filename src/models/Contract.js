@@ -45,6 +45,11 @@ const contractSchema = new mongoose.Schema(
       enum: ['Active', 'Completed', 'Cancelled'],
       default: 'Active',
     },
+    escrowStatus: {
+      type: String,
+      enum: ['ACTIVE', 'LOCKED'],
+      default: 'ACTIVE',
+    },
     milestones: [milestoneSchema],
   },
   { timestamps: true }

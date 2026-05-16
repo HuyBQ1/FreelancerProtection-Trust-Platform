@@ -33,7 +33,7 @@ const normalizeJob = (job) => {
     skills: Array.isArray(job.skills) ? job.skills : [],
     attachments: Array.isArray(job.attachments) ? job.attachments : [],
     availability: job.availability || 'Available in 3 days',
-    hourlyRate: job.hourlyRate || '$68/hr',
+    hourlyRate: job.hourlyRate || '680,000 VND/hr',
     completedJobs: job.completedJobs || '38',
     completionRate: job.completionRate || '98%',
     responseTime: job.responseTime || '1 hour',
@@ -76,6 +76,10 @@ function FreelancerDashboard() {
   const [settingsSection, setSettingsSection] = useState('profile');
   const [query, setQuery] = useState('');
   const [selectedFilter, setSelectedFilter] = useState('All');
+  const [minBudget, setMinBudget] = useState('');
+  const [maxBudget, setMaxBudget] = useState('');
+  const [deadlineFilter, setDeadlineFilter] = useState('');
+  const [sortBy, setSortBy] = useState('newest');
   const [selectedContractId, setSelectedContractId] = useState(contracts[0]?.id ?? 1);
   const [selectedDisputeId, setSelectedDisputeId] = useState(disputes[0]?.id ?? 1);
   const [selectedJob, setSelectedJob] = useState(null);
@@ -97,6 +101,14 @@ function FreelancerDashboard() {
 
   const allJobs = sharedJobs.map(normalizeJob);
 
+  const parseMoney = (value) => Number(`${value || ''}`.replace(/[^0-9]/g, '')) || 0;
+
+  const parseDeadline = (value) => {
+    if (!value || value === 'TBD') return null;
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  };
+
   useEffect(() => {
     if (activePage === 'marketplace') {
       const saved = localStorage.getItem('client_jobs');
@@ -104,10 +116,37 @@ function FreelancerDashboard() {
     }
   }, [activePage]);
 
-  const filteredJobs = allJobs.filter((job) => (
-    (job.title.toLowerCase().includes(query.toLowerCase()) || job.client.toLowerCase().includes(query.toLowerCase())) &&
-    (selectedFilter === 'All' || job.category === selectedFilter)
-  ));
+  const filteredJobs = allJobs
+    .filter((job) => {
+      const keyword = query.trim().toLowerCase();
+      const searchableText = [job.title, job.client, job.description, job.requirements, job.location, ...(job.skills || [])]
+        .join(' ')
+        .toLowerCase();
+      const budgetAmount = parseMoney(job.budget);
+      const minAmount = minBudget === '' ? null : Number(minBudget);
+      const maxAmount = maxBudget === '' ? null : Number(maxBudget);
+      const jobDeadline = parseDeadline(job.deadline);
+      const selectedDeadline = deadlineFilter ? new Date(deadlineFilter) : null;
+
+      return (
+        (!keyword || searchableText.includes(keyword)) &&
+        (selectedFilter === 'All' || job.category === selectedFilter) &&
+        (minAmount === null || budgetAmount >= minAmount) &&
+        (maxAmount === null || budgetAmount <= maxAmount) &&
+        (!selectedDeadline || (jobDeadline && jobDeadline <= selectedDeadline))
+      );
+    })
+    .sort((firstJob, secondJob) => {
+      if (sortBy === 'budget-high') return parseMoney(secondJob.budget) - parseMoney(firstJob.budget);
+      if (sortBy === 'budget-low') return parseMoney(firstJob.budget) - parseMoney(secondJob.budget);
+      if (sortBy === 'deadline') {
+        const firstDeadline = parseDeadline(firstJob.deadline)?.getTime() || Number.MAX_SAFE_INTEGER;
+        const secondDeadline = parseDeadline(secondJob.deadline)?.getTime() || Number.MAX_SAFE_INTEGER;
+        return firstDeadline - secondDeadline;
+      }
+
+      return 0;
+    });
   const selectedContract = contracts.find((item) => item.id === selectedContractId) ?? contracts[0];
   const selectedDispute = disputes.find((item) => item.id === selectedDisputeId) ?? disputes[0];
 
@@ -176,27 +215,95 @@ function FreelancerDashboard() {
   if (activePage === 'marketplace') {
     return dashboardLayout(
       <div className="space-y-6">
-        <SectionCard className="p-6">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <div>
-              <p className="muted">Marketplace</p>
-              <h2 className="mt-1 text-xl font-bold text-ink">Find the right jobs</h2>
-            </div>
-            <div className="flex flex-col gap-3 sm:flex-row">
-              <label className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                <SectionCard className="p-6">
+          <div className="flex flex-col gap-6">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+              <div>
+                <p className="muted">Marketplace</p>
+                <h2 className="mt-1 text-xl font-bold text-ink">T?m c?ng vi?c ph? h?p</h2>
+              </div>
+              <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2 shadow-sm transition-focus-within ring-pine/20 focus-within:ring-4">
                 <Search className="h-4 w-4 text-slate-400" />
-                <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search jobs or clients" className="w-full bg-transparent text-sm outline-none placeholder:text-slate-400 sm:w-60" />
-              </label>
-              <div className="flex flex-wrap gap-2">
+                <input 
+                  value={query} 
+                  onChange={(event) => setQuery(event.target.value)} 
+                  placeholder="T?m c?ng vi?c ho?c kh?ch h?ng..." 
+                  className="w-full bg-transparent text-sm outline-none placeholder:text-slate-400 sm:w-64" 
+                />
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-slate-100 bg-slate-50/50 p-3">
+              <div className="flex gap-2 overflow-x-auto pb-1 sm:pb-0">
                 {filters.map((filter) => (
-                  <button key={filter} onClick={() => setSelectedFilter(filter)} className={`rounded-full px-4 py-2 text-sm font-medium transition ${selectedFilter === filter ? 'bg-pine text-white' : 'bg-white text-slate-600 shadow-sm hover:text-slate-900'}`}>
+                  <button 
+                    key={filter} 
+                    onClick={() => setSelectedFilter(filter)} 
+                    className={`rounded-full px-4 py-1.5 text-xs font-medium transition ${selectedFilter === filter ? 'bg-pine text-white' : 'bg-white text-slate-600 shadow-sm hover:text-slate-900 border border-slate-200'}`}
+                  >
                     {filter}
                   </button>
                 ))}
               </div>
+
+              <div className="h-6 w-px bg-slate-200 hidden sm:block" />
+
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-semibold text-slate-400">Gi?:</span>
+                  <input 
+                    type="number" 
+                    value={minBudget} 
+                    onChange={(e) => setMinBudget(e.target.value)} 
+                    placeholder="T?" 
+                    className="w-20 rounded-lg border border-slate-200 px-2 py-1 text-xs outline-none focus:border-pine" 
+                  />
+                  <span className="text-slate-300">-</span>
+                  <input 
+                    type="number" 
+                    value={maxBudget} 
+                    onChange={(e) => setMaxBudget(e.target.value)} 
+                    placeholder="??n" 
+                    className="w-20 rounded-lg border border-slate-200 px-2 py-1 text-xs outline-none focus:border-pine" 
+                  />
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-semibold text-slate-400">H?n:</span>
+                  <input 
+                    type="date" 
+                    value={deadlineFilter} 
+                    onChange={(e) => setDeadlineFilter(e.target.value)} 
+                    className="rounded-lg border border-slate-200 px-2 py-1 text-xs outline-none focus:border-pine" 
+                  />
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-semibold text-slate-400">S?p x?p:</span>
+                  <select 
+                    value={sortBy} 
+                    onChange={(e) => setSortBy(e.target.value)} 
+                    className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs outline-none focus:border-pine"
+                  >
+                    <option value="newest">M?i nh?t</option>
+                    <option value="budget-high">Gi? cao</option>
+                    <option value="budget-low">Gi? th?p</option>
+                    <option value="deadline">S?p h?t h?n</option>
+                  </select>
+                </div>
+
+                <button 
+                  onClick={() => { setQuery(''); setSelectedFilter('All'); setMinBudget(''); setMaxBudget(''); setDeadlineFilter(''); setSortBy('newest'); }}
+                  className="text-xs font-medium text-coral hover:underline ml-2"
+                >
+                  X?a t?t c?
+                </button>
+              </div>
             </div>
           </div>
         </SectionCard>
+
+
         <div className="grid gap-5 xl:grid-cols-2">
           {filteredJobs.map((job) => (
             <JobCard
@@ -377,6 +484,55 @@ function FreelancerDashboard() {
                 <p className="mt-2 text-sm text-slate-500">{selectedContract.completedMilestones} of {selectedContract.totalMilestones} milestones complete</p>
               </div>
             </SectionCard>
+          <div className="flex flex-wrap items-center gap-3 rounded-3xl border border-slate-200 bg-white p-4">
+            <input
+              type="number"
+              min="0"
+              value={minBudget}
+              onChange={(event) => setMinBudget(event.target.value)}
+              placeholder="Ng?n s?ch t?"
+              className="rounded-2xl border border-slate-200 px-4 py-2 text-sm outline-none transition focus:border-pine"
+            />
+            <input
+              type="number"
+              min="0"
+              value={maxBudget}
+              onChange={(event) => setMaxBudget(event.target.value)}
+              placeholder="Ng?n s?ch ??n"
+              className="rounded-2xl border border-slate-200 px-4 py-2 text-sm outline-none transition focus:border-pine"
+            />
+            <input
+              type="date"
+              value={deadlineFilter}
+              onChange={(event) => setDeadlineFilter(event.target.value)}
+              className="rounded-2xl border border-slate-200 px-4 py-2 text-sm outline-none transition focus:border-pine"
+            />
+            <select
+              value={sortBy}
+              onChange={(event) => setSortBy(event.target.value)}
+              className="rounded-2xl border border-slate-200 px-4 py-2 text-sm outline-none transition focus:border-pine"
+            >
+              <option value="newest">M?c ??nh</option>
+              <option value="budget-high">Ng?n s?ch cao nh?t</option>
+              <option value="budget-low">Ng?n s?ch th?p nh?t</option>
+              <option value="deadline">S?p ??n h?n</option>
+            </select>
+            <button
+              type="button"
+              onClick={() => {
+                setQuery('');
+                setSelectedFilter('All');
+                setMinBudget('');
+                setMaxBudget('');
+                setDeadlineFilter('');
+                setSortBy('newest');
+              }}
+              className="rounded-2xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 transition hover:border-slate-300 hover:text-slate-900"
+            >
+              X?a b? l?c
+            </button>
+          </div>
+
             <SectionCard className="p-6">
               <div className="flex items-center gap-3"><div className="flex h-9 w-9 items-center justify-center rounded-full bg-indigo-50 text-indigo-600"><Shield className="h-4 w-4" /></div><h3 className="text-2xl font-bold text-ink">Milestones</h3></div>
               <div className="mt-6 space-y-4">
@@ -403,6 +559,55 @@ function FreelancerDashboard() {
                 })}
               </div>
             </SectionCard>
+          <div className="flex flex-wrap items-center gap-3 rounded-3xl border border-slate-200 bg-white p-4">
+            <input
+              type="number"
+              min="0"
+              value={minBudget}
+              onChange={(event) => setMinBudget(event.target.value)}
+              placeholder="Ng?n s?ch t?"
+              className="rounded-2xl border border-slate-200 px-4 py-2 text-sm outline-none transition focus:border-pine"
+            />
+            <input
+              type="number"
+              min="0"
+              value={maxBudget}
+              onChange={(event) => setMaxBudget(event.target.value)}
+              placeholder="Ng?n s?ch ??n"
+              className="rounded-2xl border border-slate-200 px-4 py-2 text-sm outline-none transition focus:border-pine"
+            />
+            <input
+              type="date"
+              value={deadlineFilter}
+              onChange={(event) => setDeadlineFilter(event.target.value)}
+              className="rounded-2xl border border-slate-200 px-4 py-2 text-sm outline-none transition focus:border-pine"
+            />
+            <select
+              value={sortBy}
+              onChange={(event) => setSortBy(event.target.value)}
+              className="rounded-2xl border border-slate-200 px-4 py-2 text-sm outline-none transition focus:border-pine"
+            >
+              <option value="newest">M?c ??nh</option>
+              <option value="budget-high">Ng?n s?ch cao nh?t</option>
+              <option value="budget-low">Ng?n s?ch th?p nh?t</option>
+              <option value="deadline">S?p ??n h?n</option>
+            </select>
+            <button
+              type="button"
+              onClick={() => {
+                setQuery('');
+                setSelectedFilter('All');
+                setMinBudget('');
+                setMaxBudget('');
+                setDeadlineFilter('');
+                setSortBy('newest');
+              }}
+              className="rounded-2xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 transition hover:border-slate-300 hover:text-slate-900"
+            >
+              X?a b? l?c
+            </button>
+          </div>
+
           </div>
         </div>
       </div>,
@@ -416,6 +621,55 @@ function FreelancerDashboard() {
           <div className="flex items-center justify-between"><div><p className="muted">Escrow</p><h2 className="mt-1 text-xl font-bold text-ink">Protected balance</h2></div><Shield className="h-5 w-5 text-pine" /></div>
           <div className="mt-6 rounded-[28px] bg-ink p-6 text-white"><p className="text-sm text-white/70">Deposited amount</p><p className="mt-2 text-4xl font-bold">{escrowSummary.amount}</p><div className="mt-5 flex items-center justify-between"><span className="text-sm text-white/70">Status</span><StatusBadge status={escrowSummary.status} dark label={escrowSummary.status} /></div></div>
         </SectionCard>
+          <div className="flex flex-wrap items-center gap-3 rounded-3xl border border-slate-200 bg-white p-4">
+            <input
+              type="number"
+              min="0"
+              value={minBudget}
+              onChange={(event) => setMinBudget(event.target.value)}
+              placeholder="Ng?n s?ch t?"
+              className="rounded-2xl border border-slate-200 px-4 py-2 text-sm outline-none transition focus:border-pine"
+            />
+            <input
+              type="number"
+              min="0"
+              value={maxBudget}
+              onChange={(event) => setMaxBudget(event.target.value)}
+              placeholder="Ng?n s?ch ??n"
+              className="rounded-2xl border border-slate-200 px-4 py-2 text-sm outline-none transition focus:border-pine"
+            />
+            <input
+              type="date"
+              value={deadlineFilter}
+              onChange={(event) => setDeadlineFilter(event.target.value)}
+              className="rounded-2xl border border-slate-200 px-4 py-2 text-sm outline-none transition focus:border-pine"
+            />
+            <select
+              value={sortBy}
+              onChange={(event) => setSortBy(event.target.value)}
+              className="rounded-2xl border border-slate-200 px-4 py-2 text-sm outline-none transition focus:border-pine"
+            >
+              <option value="newest">M?c ??nh</option>
+              <option value="budget-high">Ng?n s?ch cao nh?t</option>
+              <option value="budget-low">Ng?n s?ch th?p nh?t</option>
+              <option value="deadline">S?p ??n h?n</option>
+            </select>
+            <button
+              type="button"
+              onClick={() => {
+                setQuery('');
+                setSelectedFilter('All');
+                setMinBudget('');
+                setMaxBudget('');
+                setDeadlineFilter('');
+                setSortBy('newest');
+              }}
+              className="rounded-2xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 transition hover:border-slate-300 hover:text-slate-900"
+            >
+              X?a b? l?c
+            </button>
+          </div>
+
         <SectionCard className="p-6">
           <p className="muted">Escrow timeline</p>
           <h2 className="mt-1 text-xl font-bold text-ink">Current fund state</h2>
@@ -423,6 +677,55 @@ function FreelancerDashboard() {
             {escrowSummary.timeline.map((item) => <div key={item.label} className="flex items-start justify-between rounded-2xl border border-slate-200 p-4"><div><p className="font-medium text-slate-900">{item.label}</p><p className="mt-1 text-sm text-slate-500">{item.date}</p></div><StatusBadge status={item.state} label={item.state} /></div>)}
           </div>
         </SectionCard>
+          <div className="flex flex-wrap items-center gap-3 rounded-3xl border border-slate-200 bg-white p-4">
+            <input
+              type="number"
+              min="0"
+              value={minBudget}
+              onChange={(event) => setMinBudget(event.target.value)}
+              placeholder="Ng?n s?ch t?"
+              className="rounded-2xl border border-slate-200 px-4 py-2 text-sm outline-none transition focus:border-pine"
+            />
+            <input
+              type="number"
+              min="0"
+              value={maxBudget}
+              onChange={(event) => setMaxBudget(event.target.value)}
+              placeholder="Ng?n s?ch ??n"
+              className="rounded-2xl border border-slate-200 px-4 py-2 text-sm outline-none transition focus:border-pine"
+            />
+            <input
+              type="date"
+              value={deadlineFilter}
+              onChange={(event) => setDeadlineFilter(event.target.value)}
+              className="rounded-2xl border border-slate-200 px-4 py-2 text-sm outline-none transition focus:border-pine"
+            />
+            <select
+              value={sortBy}
+              onChange={(event) => setSortBy(event.target.value)}
+              className="rounded-2xl border border-slate-200 px-4 py-2 text-sm outline-none transition focus:border-pine"
+            >
+              <option value="newest">M?c ??nh</option>
+              <option value="budget-high">Ng?n s?ch cao nh?t</option>
+              <option value="budget-low">Ng?n s?ch th?p nh?t</option>
+              <option value="deadline">S?p ??n h?n</option>
+            </select>
+            <button
+              type="button"
+              onClick={() => {
+                setQuery('');
+                setSelectedFilter('All');
+                setMinBudget('');
+                setMaxBudget('');
+                setDeadlineFilter('');
+                setSortBy('newest');
+              }}
+              className="rounded-2xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 transition hover:border-slate-300 hover:text-slate-900"
+            >
+              X?a b? l?c
+            </button>
+          </div>
+
       </div>,
     );
   }
@@ -464,10 +767,108 @@ function FreelancerDashboard() {
               </div>
               <p className="mt-8 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm leading-6 text-slate-600">{selectedDispute.summary.en}</p>
             </SectionCard>
+          <div className="flex flex-wrap items-center gap-3 rounded-3xl border border-slate-200 bg-white p-4">
+            <input
+              type="number"
+              min="0"
+              value={minBudget}
+              onChange={(event) => setMinBudget(event.target.value)}
+              placeholder="Ng?n s?ch t?"
+              className="rounded-2xl border border-slate-200 px-4 py-2 text-sm outline-none transition focus:border-pine"
+            />
+            <input
+              type="number"
+              min="0"
+              value={maxBudget}
+              onChange={(event) => setMaxBudget(event.target.value)}
+              placeholder="Ng?n s?ch ??n"
+              className="rounded-2xl border border-slate-200 px-4 py-2 text-sm outline-none transition focus:border-pine"
+            />
+            <input
+              type="date"
+              value={deadlineFilter}
+              onChange={(event) => setDeadlineFilter(event.target.value)}
+              className="rounded-2xl border border-slate-200 px-4 py-2 text-sm outline-none transition focus:border-pine"
+            />
+            <select
+              value={sortBy}
+              onChange={(event) => setSortBy(event.target.value)}
+              className="rounded-2xl border border-slate-200 px-4 py-2 text-sm outline-none transition focus:border-pine"
+            >
+              <option value="newest">M?c ??nh</option>
+              <option value="budget-high">Ng?n s?ch cao nh?t</option>
+              <option value="budget-low">Ng?n s?ch th?p nh?t</option>
+              <option value="deadline">S?p ??n h?n</option>
+            </select>
+            <button
+              type="button"
+              onClick={() => {
+                setQuery('');
+                setSelectedFilter('All');
+                setMinBudget('');
+                setMaxBudget('');
+                setDeadlineFilter('');
+                setSortBy('newest');
+              }}
+              className="rounded-2xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 transition hover:border-slate-300 hover:text-slate-900"
+            >
+              X?a b? l?c
+            </button>
+          </div>
+
             <SectionCard className="p-6">
               <div className="flex items-center gap-3"><div className="flex h-9 w-9 items-center justify-center rounded-full bg-coral/10 text-coral"><Shield className="h-4 w-4" /></div><h3 className="text-2xl font-bold text-ink">Case timeline</h3></div>
               <div className="mt-6 space-y-4">{selectedDispute.timeline.map((item) => <div key={`${item.label}-${item.date}`} className="rounded-2xl border border-slate-200 p-4"><div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between"><p className="font-semibold text-ink">{item.label}</p><span className="text-sm text-slate-400">{item.date}</span></div><p className="mt-2 text-sm leading-6 text-slate-600">{item.note}</p></div>)}</div>
             </SectionCard>
+          <div className="flex flex-wrap items-center gap-3 rounded-3xl border border-slate-200 bg-white p-4">
+            <input
+              type="number"
+              min="0"
+              value={minBudget}
+              onChange={(event) => setMinBudget(event.target.value)}
+              placeholder="Ng?n s?ch t?"
+              className="rounded-2xl border border-slate-200 px-4 py-2 text-sm outline-none transition focus:border-pine"
+            />
+            <input
+              type="number"
+              min="0"
+              value={maxBudget}
+              onChange={(event) => setMaxBudget(event.target.value)}
+              placeholder="Ng?n s?ch ??n"
+              className="rounded-2xl border border-slate-200 px-4 py-2 text-sm outline-none transition focus:border-pine"
+            />
+            <input
+              type="date"
+              value={deadlineFilter}
+              onChange={(event) => setDeadlineFilter(event.target.value)}
+              className="rounded-2xl border border-slate-200 px-4 py-2 text-sm outline-none transition focus:border-pine"
+            />
+            <select
+              value={sortBy}
+              onChange={(event) => setSortBy(event.target.value)}
+              className="rounded-2xl border border-slate-200 px-4 py-2 text-sm outline-none transition focus:border-pine"
+            >
+              <option value="newest">M?c ??nh</option>
+              <option value="budget-high">Ng?n s?ch cao nh?t</option>
+              <option value="budget-low">Ng?n s?ch th?p nh?t</option>
+              <option value="deadline">S?p ??n h?n</option>
+            </select>
+            <button
+              type="button"
+              onClick={() => {
+                setQuery('');
+                setSelectedFilter('All');
+                setMinBudget('');
+                setMaxBudget('');
+                setDeadlineFilter('');
+                setSortBy('newest');
+              }}
+              className="rounded-2xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 transition hover:border-slate-300 hover:text-slate-900"
+            >
+              X?a b? l?c
+            </button>
+          </div>
+
           </div>
         </div>
       </div>,

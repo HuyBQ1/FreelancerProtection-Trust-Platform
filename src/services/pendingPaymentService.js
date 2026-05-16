@@ -1,10 +1,9 @@
 import Transaction from '../models/Transaction.js';
 import { findAccountByIdAndRole } from './accountService.js';
+import { parseMoneyAmount } from '../utils/money.js';
 
 function parseBudgetNumber(budget) {
-  const normalized = `${budget || ''}`.replace(/[^0-9.]/g, '');
-  const parsed = Number.parseFloat(normalized);
-  return Number.isFinite(parsed) ? parsed : 0;
+  return parseMoneyAmount(budget);
 }
 
 function getMilestoneTitle(milestone, index) {

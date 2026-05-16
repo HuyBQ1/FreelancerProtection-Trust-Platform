@@ -2,6 +2,7 @@ import Contract from '../models/Contract.js';
 import Job from '../models/Job.js';
 import Transaction from '../models/Transaction.js';
 import { findAccountByIdAndRole } from '../services/accountService.js';
+import { assertNoBlockingDispute } from '../services/disputeService.js';
 import { ensurePendingPaymentsForJob } from '../services/pendingPaymentService.js';
 
 function getStrictObjectId(value) {
@@ -10,6 +11,14 @@ function getStrictObjectId(value) {
   }
 
   return /^[a-fA-F0-9]{24}$/.test(value) ? value : null;
+}
+
+function assertBankAccountIsActive(user) {
+  if (user?.settings?.bankAccount?.isFrozen) {
+    const error = new Error(user.settings.bankAccount.frozenReason || 'Bank account is frozen by admin');
+    error.statusCode = 403;
+    throw error;
+  }
 }
 
 export const depositToEscrow = async (req, res, next) => {
@@ -86,6 +95,7 @@ export const releaseToFreelancer = async (req, res, next) => {
       if (!milestone.isFunded) {
         return res.status(400).json({ message: 'Milestone is not funded yet' });
       }
+      await assertNoBlockingDispute(validContractId, validMilestoneId);
       amount = milestone.amount;
     } else {
       amount = requestedAmount > 0 ? requestedAmount : 800;
@@ -185,6 +195,8 @@ export const getEscrowSummary = async (req, res, next) => {
 
 export const topUpBalance = async (req, res, next) => {
   try {
+    assertBankAccountIsActive(req.user);
+
     const amount = Number(req.body?.amount) || 0;
 
     if (amount <= 0) {
@@ -217,6 +229,8 @@ export const topUpBalance = async (req, res, next) => {
 
 export const withdrawBalance = async (req, res, next) => {
   try {
+    assertBankAccountIsActive(req.user);
+
     const amount = Number(req.body?.amount) || 0;
 
     if (amount <= 0) {

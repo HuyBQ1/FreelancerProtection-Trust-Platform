@@ -5,6 +5,7 @@ import { findAccountByEmail, findAccountByIdAndRole, findFirstAccountByRole } fr
 import { ensurePendingPaymentsForJob } from '../services/pendingPaymentService.js';
 import { createNotification } from '../services/notificationService.js';
 import { emitToUser } from '../socket.js';
+import { APP_CURRENCY, formatMoney, parseMoneyAmount } from '../utils/money.js';
 
 function formatMessageTime(date) {
   return new Date(date).toLocaleTimeString('en-US', {
@@ -24,17 +25,11 @@ function isValidObjectId(value) {
 }
 
 function parseBudgetNumber(budget) {
-  const normalized = `${budget || ''}`.replace(/[^0-9.]/g, '');
-  const parsed = Number.parseFloat(normalized);
-  return Number.isFinite(parsed) ? parsed : 0;
+  return parseMoneyAmount(budget);
 }
 
 function formatCurrency(amount) {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    maximumFractionDigits: 0,
-  }).format(amount || 0);
+  return formatMoney(amount);
 }
 
 function isJobCompleted(job) {
@@ -80,7 +75,7 @@ function serializeThread(thread, currentUser) {
     })),
     deal: {
       amount: thread.deal?.amount || 0,
-      currency: thread.deal?.currency || 'USD',
+      currency: thread.deal?.currency || APP_CURRENCY,
       status: thread.deal?.status || 'none',
       note: thread.deal?.note || '',
       milestoneIndex: Number.isInteger(thread.deal?.milestoneIndex) ? thread.deal.milestoneIndex : null,
@@ -352,7 +347,7 @@ export async function updateDeal(req, res) {
     throw error;
   }
 
-  const parsedAmount = Number(amount);
+  const parsedAmount = parseMoneyAmount(amount);
   if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
     const error = new Error('A valid deal amount is required');
     error.statusCode = 400;
@@ -434,7 +429,7 @@ export async function updateDeal(req, res) {
     ? 'accepted'
     : 'proposed';
   const milestoneTitle = targetMilestone.title || `Milestone ${parsedMilestoneIndex + 1}`;
-  const formattedAmount = `$${parsedAmount.toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
+  const formattedAmount = formatCurrency(parsedAmount);
 
   if (nextStatus === 'accepted') {
     if (String(job.clientId) !== String(req.user._id)) {
@@ -502,7 +497,7 @@ export async function updateDeal(req, res) {
 
   thread.deal = {
     amount: parsedAmount,
-    currency: 'USD',
+    currency: APP_CURRENCY,
     status: nextStatus,
     note: milestoneTitle,
     milestoneIndex: parsedMilestoneIndex,

@@ -3,6 +3,8 @@ import { ArrowUpRight, CheckCircle2, DollarSign, MessageSquarePlus, Paperclip, P
 import { io } from 'socket.io-client';
 import { useNavigate } from 'react-router-dom';
 import SectionCard from './SectionCard';
+import { getStoredLanguage } from '../utils/language';
+import { parseMoneyAmount } from '../utils/money';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
 const THREADS_URL = `${API_BASE_URL}/chat/threads`;
@@ -23,6 +25,7 @@ function isJobCompleted(job) {
 
 function ChatPanel({ currentUser, userName, initialThreadId = '', onDealUpdated }) {
   const navigate = useNavigate();
+  const isVietnamese = (currentUser?.settings?.language || getStoredLanguage()) === 'vi';
   const [threads, setThreads] = useState([]);
   const [selectedThreadId, setSelectedThreadId] = useState('');
   const [draft, setDraft] = useState('');
@@ -142,7 +145,7 @@ function ChatPanel({ currentUser, userName, initialThreadId = '', onDealUpdated 
 
       const data = await response.json().catch(() => ({}));
       if (!response.ok) {
-        throw new Error(data.message || 'Could not load chat threads.');
+        throw new Error(data.message || (isVietnamese ? 'Không thể tải danh sách cuộc trò chuyện.' : 'Could not load chat threads.'));
       }
 
       const nextThreads = Array.isArray(data.threads) ? data.threads : [];
@@ -163,7 +166,7 @@ function ChatPanel({ currentUser, userName, initialThreadId = '', onDealUpdated 
     } catch (error) {
       setStatus({
         type: 'error',
-        message: error instanceof Error ? error.message : 'Could not load chat threads.',
+        message: error instanceof Error ? error.message : (isVietnamese ? 'Không thể tải danh sách cuộc trò chuyện.' : 'Could not load chat threads.'),
       });
     } finally {
       setLoading(false);
@@ -302,7 +305,7 @@ function ChatPanel({ currentUser, userName, initialThreadId = '', onDealUpdated 
 
       const data = await response.json().catch(() => ({}));
       if (!response.ok) {
-        throw new Error(data.message || 'Could not create a chat thread.');
+        throw new Error(data.message || (isVietnamese ? 'Không thể tạo cuộc trò chuyện.' : 'Could not create a chat thread.'));
       }
 
       if (data.thread) {
@@ -312,7 +315,7 @@ function ChatPanel({ currentUser, userName, initialThreadId = '', onDealUpdated 
     } catch (error) {
       setStatus({
         type: 'error',
-        message: error instanceof Error ? error.message : 'Could not create a chat thread.',
+        message: error instanceof Error ? error.message : (isVietnamese ? 'Không thể tạo cuộc trò chuyện.' : 'Could not create a chat thread.'),
       });
     } finally {
       setCreatingThread(false);
@@ -337,7 +340,7 @@ function ChatPanel({ currentUser, userName, initialThreadId = '', onDealUpdated 
 
       const data = await response.json().catch(() => ({}));
       if (!response.ok) {
-        throw new Error(data.message || 'Could not send the message.');
+        throw new Error(data.message || (isVietnamese ? 'Không thể gửi tin nhắn.' : 'Could not send the message.'));
       }
 
       if (data.thread) {
@@ -347,7 +350,7 @@ function ChatPanel({ currentUser, userName, initialThreadId = '', onDealUpdated 
     } catch (error) {
       setStatus({
         type: 'error',
-        message: error instanceof Error ? error.message : 'Could not send the message.',
+        message: error instanceof Error ? error.message : (isVietnamese ? 'Không thể gửi tin nhắn.' : 'Could not send the message.'),
       });
     } finally {
       setSending(false);
@@ -391,18 +394,18 @@ function ChatPanel({ currentUser, userName, initialThreadId = '', onDealUpdated 
     if (!token || !selectedThread?.id) return;
 
     if (dealLocked) {
-      setStatus({ type: 'error', message: 'This job is completed. Deal price is locked.' });
+      setStatus({ type: 'error', message: isVietnamese ? 'Công việc này đã hoàn tất. Mức giá thỏa thuận đã bị khóa.' : 'This job is completed. Deal price is locked.' });
       return;
     }
 
-    const parsedAmount = Number(dealAmount);
+    const parsedAmount = parseMoneyAmount(dealAmount);
     if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
-      setStatus({ type: 'error', message: 'Please enter a valid deal price.' });
+      setStatus({ type: 'error', message: isVietnamese ? 'Vui lòng nhập mức giá thỏa thuận hợp lệ.' : 'Please enter a valid deal price.' });
       return;
     }
 
     if (!relatedJob?.id || !dealMilestoneIndex) {
-      setStatus({ type: 'error', message: 'Please select a milestone before updating the deal price.' });
+      setStatus({ type: 'error', message: isVietnamese ? 'Vui lòng chọn milestone trước khi cập nhật mức giá thỏa thuận.' : 'Please select a milestone before updating the deal price.' });
       return;
     }
 
@@ -470,8 +473,8 @@ function ChatPanel({ currentUser, userName, initialThreadId = '', onDealUpdated 
     return (
       <SectionCard className="p-6">
         <p className="muted">Direct chat</p>
-        <h2 className="mt-1 text-2xl font-bold text-ink">Messages</h2>
-        <p className="mt-4 text-sm text-slate-500">Loading chat threads...</p>
+        <h2 className="mt-1 text-2xl font-bold text-ink">{isVietnamese ? 'Tin nhắn' : 'Messages'}</h2>
+        <p className="mt-4 text-sm text-slate-500">{isVietnamese ? 'Đang tải cuộc trò chuyện...' : 'Loading chat threads...'}</p>
       </SectionCard>
     );
   }
@@ -482,7 +485,7 @@ function ChatPanel({ currentUser, userName, initialThreadId = '', onDealUpdated 
         <div className="flex items-center justify-between gap-3">
           <div>
             <p className="muted">Direct chat</p>
-            <h2 className="mt-1 text-2xl font-bold text-ink">Messages</h2>
+            <h2 className="mt-1 text-2xl font-bold text-ink">{isVietnamese ? 'Tin nhắn' : 'Messages'}</h2>
           </div>
           <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
             {threads.length} threads
@@ -494,7 +497,7 @@ function ChatPanel({ currentUser, userName, initialThreadId = '', onDealUpdated 
           <input
             value={search}
             onChange={(event) => setSearch(event.target.value)}
-            placeholder="Search chat"
+              placeholder={isVietnamese ? 'Tìm cuộc trò chuyện' : 'Search chat'}
             className="w-full bg-transparent text-sm outline-none placeholder:text-slate-400"
           />
         </label>
@@ -506,7 +509,7 @@ function ChatPanel({ currentUser, userName, initialThreadId = '', onDealUpdated 
           className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-ink px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
         >
           <MessageSquarePlus className="h-4 w-4" />
-          {creatingThread ? 'Creating...' : 'Start conversation'}
+          {creatingThread ? (isVietnamese ? 'Đang tạo...' : 'Creating...') : (isVietnamese ? 'Bắt đầu trò chuyện' : 'Start conversation')}
         </button>
 
         {status.message ? (
@@ -549,7 +552,7 @@ function ChatPanel({ currentUser, userName, initialThreadId = '', onDealUpdated 
 
           {visibleThreads.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-5 text-sm text-slate-500">
-              No conversations yet. Click `Start conversation` to create your first chat thread.
+              {isVietnamese ? 'Chưa có cuộc trò chuyện nào. Hãy bấm `Bắt đầu trò chuyện` để tạo cuộc trò chuyện đầu tiên.' : 'No conversations yet. Click `Start conversation` to create your first chat thread.'}
             </div>
           ) : null}
         </div>
@@ -572,7 +575,7 @@ function ChatPanel({ currentUser, userName, initialThreadId = '', onDealUpdated 
                 }}
                 className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
               >
-                Open contract
+                {isVietnamese ? 'Mở hợp đồng' : 'Open contract'}
                 <ArrowUpRight className="h-4 w-4" />
               </button>
             </div>
@@ -597,7 +600,7 @@ function ChatPanel({ currentUser, userName, initialThreadId = '', onDealUpdated 
                       <div className={`rounded-[28px] px-4 py-3 shadow-sm ${mine ? 'rounded-br-md bg-ink text-white' : 'rounded-bl-md border border-slate-200 bg-white text-slate-800'}`}>
                         <div className={`flex items-center gap-2 ${mine ? 'justify-end' : 'justify-start'}`}>
                           <p className={`text-xs font-semibold ${mine ? 'text-white/70' : 'text-slate-500'}`}>
-                            {mine ? 'You' : message.senderName}
+                            {mine ? (isVietnamese ? 'Bạn' : 'You') : message.senderName}
                           </p>
                           <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.18em] ${mine ? 'bg-white/10 text-white/70' : 'bg-slate-100 text-slate-500'}`}>
                             {message.senderRole}
@@ -622,9 +625,9 @@ function ChatPanel({ currentUser, userName, initialThreadId = '', onDealUpdated 
                           <DollarSign className="h-5 w-5" />
                         </div>
                         <div>
-                          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Deal price</p>
+                          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{isVietnamese ? 'Mức giá thỏa thuận' : 'Deal price'}</p>
                           <h3 className="text-lg font-bold text-ink">
-                            {dealLocked ? 'Deal locked for completed job' : dealStatus === 'accepted' ? 'Price accepted' : dealStatus === 'proposed' ? 'Price under negotiation' : 'Create deal price'}
+                            {dealLocked ? (isVietnamese ? 'Giá đã bị khóa vì công việc hoàn tất' : 'Deal locked for completed job') : dealStatus === 'accepted' ? (isVietnamese ? 'Giá đã được chấp thuận' : 'Price accepted') : dealStatus === 'proposed' ? (isVietnamese ? 'Giá đang được thương lượng' : 'Price under negotiation') : (isVietnamese ? 'Tạo mức giá thỏa thuận' : 'Create deal price')}
                           </h3>
                         </div>
                         <span className={`rounded-full px-3 py-1 text-xs font-semibold ${
@@ -650,7 +653,7 @@ function ChatPanel({ currentUser, userName, initialThreadId = '', onDealUpdated 
 
                     {dealLocked ? (
                       <p className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-600">
-                        This job is completed, so the milestone price can no longer be negotiated.
+                        {isVietnamese ? 'Công việc này đã hoàn tất nên không thể thương lượng lại giá milestone.' : 'This job is completed, so the milestone price can no longer be negotiated.'}
                       </p>
                     ) : null}
 
@@ -667,7 +670,7 @@ function ChatPanel({ currentUser, userName, initialThreadId = '', onDealUpdated 
                           disabled={dealJobOptions.length === 0}
                           className="mt-2 h-12 w-full truncate rounded-2xl border border-slate-200 bg-white px-4 text-sm outline-none transition focus:border-slate-400 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
                         >
-                          <option value="">{dealJobOptions.length ? 'Select job to deal' : 'No available jobs'}</option>
+                          <option value="">{dealJobOptions.length ? (isVietnamese ? 'Chọn công việc để thỏa thuận' : 'Select job to deal') : (isVietnamese ? 'Không có công việc khả dụng' : 'No available jobs')}</option>
                           {dealJobOptions.map((job) => (
                             <option key={job.id} value={job.id}>
                               {job.title} {job.status ? `- ${job.status}` : ''}
@@ -678,16 +681,16 @@ function ChatPanel({ currentUser, userName, initialThreadId = '', onDealUpdated 
                       <label className="block min-w-0">
                         <span className="block whitespace-nowrap text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">Amount</span>
                         <div className="mt-2 flex h-12 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4">
-                          <span className="font-bold text-slate-400">$</span>
                           <input
-                            type="number"
+                            inputMode="numeric"
                             min="1"
                             value={dealAmount}
                             onChange={(event) => setDealAmount(event.target.value)}
                             disabled={dealLocked || (!isClient && !isFreelancer)}
-                            placeholder="1200"
+                            placeholder="1200000"
                             className="w-full bg-transparent text-sm font-semibold text-slate-900 outline-none placeholder:text-slate-400"
                           />
+                          <span className="font-bold text-slate-400">VND</span>
                         </div>
                       </label>
                       <label className="block min-w-0">
@@ -717,7 +720,7 @@ function ChatPanel({ currentUser, userName, initialThreadId = '', onDealUpdated 
                           className="inline-flex items-center gap-2 rounded-2xl bg-ink px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
                         >
                           <DollarSign className="h-4 w-4" />
-                          {dealStatus === 'proposed' || dealStatus === 'accepted' ? 'Update proposal' : 'Send price'}
+                          {dealStatus === 'proposed' || dealStatus === 'accepted' ? (isVietnamese ? 'Cập nhật đề xuất' : 'Update proposal') : (isVietnamese ? 'Gửi mức giá' : 'Send price')}
                         </button>
                       ) : null}
                       {isClient && !dealLocked ? (
@@ -739,7 +742,7 @@ function ChatPanel({ currentUser, userName, initialThreadId = '', onDealUpdated 
                             className="inline-flex items-center gap-2 rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
                           >
                             {dealStatus === 'accepted' ? <PencilLine className="h-4 w-4" /> : <CheckCircle2 className="h-4 w-4" />}
-                            {dealStatus === 'accepted' ? 'Edit accepted price' : 'Accept price'}
+                            {dealStatus === 'accepted' ? (isVietnamese ? 'Sửa giá đã duyệt' : 'Edit accepted price') : (isVietnamese ? 'Duyệt mức giá' : 'Accept price')}
                           </button>
                           {dealStatus !== 'accepted' ? (
                             <button
@@ -761,14 +764,14 @@ function ChatPanel({ currentUser, userName, initialThreadId = '', onDealUpdated 
                   value={draft}
                   onChange={(event) => setDraft(event.target.value)}
                   rows={2}
-                  placeholder="Type a message to the other side..."
+                  placeholder={isVietnamese ? 'Nhập tin nhắn cho bên còn lại...' : 'Type a message to the other side...'}
                   className="w-full resize-none bg-transparent px-2 py-1 text-sm outline-none placeholder:text-slate-400"
                 />
                 <div className="mt-3 flex items-center justify-between">
                   <div className="flex flex-wrap items-center gap-2">
                     <button className="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold text-slate-600 transition hover:bg-white hover:text-slate-900">
                       <Paperclip className="h-4 w-4" />
-                      Attach file
+                      {isVietnamese ? 'Đính kèm tệp' : 'Attach file'}
                     </button>
                     <button
                       type="button"
@@ -780,7 +783,7 @@ function ChatPanel({ currentUser, userName, initialThreadId = '', onDealUpdated 
                       }`}
                     >
                       <DollarSign className="h-4 w-4" />
-                      Deal price
+                      {isVietnamese ? 'Mức giá thỏa thuận' : 'Deal price'}
                     </button>
                   </div>
                   <button
@@ -790,7 +793,7 @@ function ChatPanel({ currentUser, userName, initialThreadId = '', onDealUpdated 
                     className="inline-flex items-center gap-2 rounded-xl bg-ink px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     <SendHorizonal className="h-4 w-4" />
-                    {sending ? 'Sending...' : 'Send'}
+                    {sending ? (isVietnamese ? 'Đang gửi...' : 'Sending...') : (isVietnamese ? 'Gửi' : 'Send')}
                   </button>
                 </div>
               </div>
@@ -801,7 +804,7 @@ function ChatPanel({ currentUser, userName, initialThreadId = '', onDealUpdated 
             <p className="muted">Direct chat</p>
             <h2 className="mt-2 text-2xl font-bold text-ink">No conversation selected yet</h2>
             <p className="mt-3 max-w-md text-sm leading-7 text-slate-500">
-              Start a conversation to create the first client and freelancer chat thread in MongoDB.
+              {isVietnamese ? 'Hãy bắt đầu một cuộc trò chuyện để tạo luồng chat đầu tiên giữa khách hàng và freelancer trong MongoDB.' : 'Start a conversation to create the first client and freelancer chat thread in MongoDB.'}
             </p>
             <button
               type="button"
@@ -810,7 +813,7 @@ function ChatPanel({ currentUser, userName, initialThreadId = '', onDealUpdated 
               className="mt-6 inline-flex items-center gap-2 rounded-2xl bg-ink px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
             >
               <MessageSquarePlus className="h-4 w-4" />
-              {creatingThread ? 'Creating...' : 'Start conversation'}
+              {creatingThread ? (isVietnamese ? 'Đang tạo...' : 'Creating...') : (isVietnamese ? 'Bắt đầu trò chuyện' : 'Start conversation')}
             </button>
           </div>
         )}

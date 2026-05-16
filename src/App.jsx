@@ -4,6 +4,7 @@ import Login from './pages/Login';
 import Register from './pages/Register';
 import AdminDashboard from './pages/AdminDashboard';
 import ClientDashboard from './pages/ClientDashboard';
+import ClientProfile from './pages/ClientProfile';
 import FreelancerDashboard from './pages/FreelancerDashboard';
 import FreelancerProfile from './pages/FreelancerProfile';
 import JobDetails from './pages/JobDetails';
@@ -23,12 +24,16 @@ function App() {
           <Route path="/client-jobs/new" element={<AddJob />} />
           <Route path="/client-jobs/:jobId/edit" element={<AddJob />} />
           <Route path="/client-jobs/:jobId" element={<JobDetails />} />
-          <Route path="/freelancer-profile/:profileId" element={<FreelancerProfile />} />
+          <Route path="/client-profile/:profileId" element={<ClientProfile />} />
         </Route>
 
         <Route element={<ProtectedRoute allowedRole="freelancer" />}>
           <Route path="/freelancer-dashboard" element={<FreelancerDashboard />} />
           <Route path="/freelancer-jobs/:jobId" element={<JobDetails />} />
+        </Route>
+
+        <Route element={<ProtectedRoute allowedRole={['client', 'freelancer']} />}>
+          <Route path="/freelancer-profile/:profileId" element={<FreelancerProfile />} />
         </Route>
 
         <Route element={<ProtectedRoute allowedRole="admin" />}>

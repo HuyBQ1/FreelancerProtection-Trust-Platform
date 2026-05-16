@@ -57,14 +57,14 @@ const translations = {
     attachmentsLabel: 'Attachments',
     descriptionLabel: 'Description',
     placeholderJobTitle: 'e.g. React dashboard redesign',
-    placeholderBudget: '$3,500 - $5,000',
+    placeholderBudget: '3,500,000 - 5,000,000 VND',
     placeholderClient: 'Your company or team',
     placeholderDuration: 'e.g. 3 weeks',
     placeholderLocation: 'e.g. Ho Chi Minh City or Remote',
     placeholderFreelancersNeeded: 'e.g. 1',
     placeholderDeadline: 'e.g. 31/05/2026',
     placeholderAvailability: 'e.g. Available in 3 days',
-    placeholderHourlyRate: 'e.g. $68/hr',
+    placeholderHourlyRate: 'e.g. 680,000 VND/hr',
     placeholderCompletedJobs: 'e.g. 38',
     placeholderCompletionRate: 'e.g. 98%',
     placeholderResponseTime: 'e.g. 1 hour',
@@ -161,14 +161,14 @@ const translations = {
     attachmentsLabel: 'Tệp đính kèm',
     descriptionLabel: 'Mô tả',
     placeholderJobTitle: 'ví dụ: Thiết kế dashboard React',
-    placeholderBudget: '$3,500 - $5,000',
+    placeholderBudget: '3,500,000 - 5,000,000 VND',
     placeholderClient: 'Công ty hoặc đội của bạn',
     placeholderDuration: 'ví dụ: 3 tuần',
     placeholderLocation: 'ví dụ: Hà Nội hoặc Remote',
     placeholderFreelancersNeeded: 'ví dụ: 1',
     placeholderDeadline: 'ví dụ: 31/05/2026',
     placeholderAvailability: 'ví dụ: Có thể bắt đầu sau 3 ngày',
-    placeholderHourlyRate: 'ví dụ: $68/giờ',
+    placeholderHourlyRate: 'ví dụ: 680,000 VND/giờ',
     placeholderCompletedJobs: 'ví dụ: 38',
     placeholderCompletionRate: 'ví dụ: 98%',
     placeholderResponseTime: 'ví dụ: 1 giờ',
@@ -238,7 +238,7 @@ const labels = {
 const clientStats = [
   { label: 'Open jobs', value: '12', hint: '4 new proposals today', icon: BriefcaseBusiness, accent: 'bg-pine/10 text-pine' },
   { label: 'Pending approvals', value: '3', hint: 'Milestones waiting for review', icon: ClipboardCheck, accent: 'bg-coral/10 text-coral' },
-  { label: 'Protected spend', value: '$18,400', hint: '$6,200 currently held in escrow', icon: CircleDollarSign, accent: 'bg-gold/10 text-gold' },
+  { label: 'Protected spend', value: '18,400,000 VND', hint: '6,200,000 VND currently held in escrow', icon: CircleDollarSign, accent: 'bg-gold/10 text-gold' },
 ];
 const clientActivities = [
   { title: 'Proposal shortlist updated', description: '3 freelancers were moved to the final review stage for the dashboard redesign role.', time: '20 minutes ago', icon: Users },
@@ -248,7 +248,7 @@ const clientActivities = [
 const clientCards = [
   {
     title: 'Senior React freelancer shortlist',
-    budget: '$4,500',
+    budget: '4,500,000 VND',
     client: 'Acme Ventures',
     category: 'Development',
     description: 'Review top candidates for your trust portal build and compare availability, rates, and ratings.',
@@ -277,7 +277,7 @@ const clientCards = [
   },
   {
     title: 'UI/UX designer recommendations',
-    budget: '$3,000',
+    budget: '3,000,000 VND',
     client: 'Bridge Legal',
     category: 'Design',
     description: 'Hand-picked designers with strong escrow workflow and product interface experience.',
@@ -706,7 +706,7 @@ function ClientDashboard() {
           <h2 className="mt-1 text-xl font-bold text-ink">{activeCopy.protectedBudget}</h2>
           <div className="mt-6 rounded-[28px] bg-ink p-6 text-white">
             <p className="text-sm text-white/70">{activeCopy.reservedProjectBudget}</p>
-            <p className="mt-2 text-4xl font-bold">$18,400</p>
+            <p className="mt-2 text-4xl font-bold">18,400,000 VND</p>
             <div className="mt-5 flex flex-wrap gap-3">
               <button className="rounded-2xl bg-white px-4 py-2 text-sm font-semibold text-ink">{activeCopy.releasePayment}</button>
               <button className="rounded-2xl border border-white/15 px-4 py-2 text-sm font-semibold text-white">{activeCopy.createDeposit}</button>

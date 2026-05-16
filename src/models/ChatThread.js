@@ -66,7 +66,7 @@ const dealSchema = new mongoose.Schema(
     currency: {
       type: String,
       trim: true,
-      default: 'USD',
+      default: 'VND',
     },
     status: {
       type: String,

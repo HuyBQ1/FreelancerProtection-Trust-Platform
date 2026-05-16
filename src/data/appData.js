@@ -1,5 +1,6 @@
 export const sidebarItems = [
   { label: 'Dashboard', page: 'dashboard' },
+  { label: 'Profile', page: 'profile' },
   { label: 'Jobs', page: 'marketplace' },
   { label: 'Contracts', page: 'contracts' },
   { label: 'Chat', page: 'chat' },
@@ -16,6 +17,6 @@ export const disputes = [];
 export const freelancerProfiles = [];
 
 export const escrowSummary = {
-  deposited: '$0',
+  deposited: '0 VND',
   status: 'No database transaction yet',
 };

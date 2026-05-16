@@ -63,13 +63,80 @@ const contractStateSchema = new mongoose.Schema(
     progress: { type: Number, default: 0 },
     completedMilestones: { type: Number, default: 0 },
     totalMilestones: { type: Number, default: 0 },
-    earned: { type: String, default: '$0' },
+    earned: { type: String, default: '0 VND' },
     milestones: {
       type: [contractMilestoneSchema],
       default: [],
     },
   },
   { _id: false },
+);
+
+const onlineContractSchema = new mongoose.Schema(
+  {
+    status: {
+      type: String,
+      enum: ['pending_signature', 'signed'],
+      default: 'pending_signature',
+    },
+    title: { type: String, default: '', trim: true },
+    content: { type: String, default: '', trim: true },
+    clientAcceptedAt: { type: Date, default: null },
+    clientSignedAt: { type: Date, default: null },
+    clientSignature: { type: String, default: '', trim: true },
+    clientSignatureImage: { type: String, default: '' },
+    clientSignedIp: { type: String, default: '', trim: true },
+    freelancerSignedAt: { type: Date, default: null },
+    freelancerSignature: { type: String, default: '', trim: true },
+    freelancerSignatureImage: { type: String, default: '' },
+    freelancerSignedIp: { type: String, default: '', trim: true },
+  },
+  { _id: false },
+);
+
+const proposalSchema = new mongoose.Schema(
+  {
+    freelancerId: {
+      type: mongoose.Schema.Types.ObjectId,
+      required: true,
+    },
+    freelancerName: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    freelancerEmail: {
+      type: String,
+      default: '',
+      trim: true,
+      lowercase: true,
+    },
+    bidAmount: {
+      type: Number,
+      required: true,
+      min: 1,
+    },
+    timeline: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+    coverLetter: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+    status: {
+      type: String,
+      enum: ['pending', 'accepted', 'declined'],
+      default: 'pending',
+    },
+    submittedAt: {
+      type: Date,
+      default: Date.now,
+    },
+  },
+  { timestamps: true },
 );
 
 const jobSchema = new mongoose.Schema(
@@ -132,6 +199,11 @@ const jobSchema = new mongoose.Schema(
       enum: ['open', 'assigned', 'closed'],
       default: 'open',
     },
+    escrowStatus: {
+      type: String,
+      enum: ['ACTIVE', 'LOCKED'],
+      default: 'ACTIVE',
+    },
     moderationStatus: {
       type: String,
       enum: ['pending', 'approved', 'flagged', 'rejected'],
@@ -172,6 +244,14 @@ const jobSchema = new mongoose.Schema(
     contractState: {
       type: contractStateSchema,
       default: null,
+    },
+    onlineContract: {
+      type: onlineContractSchema,
+      default: null,
+    },
+    proposals: {
+      type: [proposalSchema],
+      default: [],
     },
   },
   { timestamps: true },

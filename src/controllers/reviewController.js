@@ -1,6 +1,42 @@
 import Review from '../models/Review.js';
-
 import mongoose from 'mongoose';
+import { findAnyAccountById } from '../services/accountService.js';
+
+async function serializeReview(review) {
+  const reviewer = await findAnyAccountById(review.reviewerId);
+  const recipient = await findAnyAccountById(review.recipientId);
+
+  return {
+    _id: review._id,
+    contractId: review.contractId,
+    milestoneId: review.milestoneId,
+    reviewerId: reviewer
+      ? {
+          _id: reviewer._id,
+          fullName: reviewer.fullName,
+          avatar: reviewer.avatar || '',
+          email: reviewer.email,
+          role: reviewer.role,
+        }
+      : null,
+    recipientId: recipient
+      ? {
+          _id: recipient._id,
+          fullName: recipient.fullName,
+          avatar: recipient.avatar || '',
+          email: recipient.email,
+          role: recipient.role,
+        }
+      : null,
+    reviewerRole: review.reviewerRole,
+    rating: review.rating,
+    comment: review.comment,
+    visibility: review.visibility,
+    status: review.status,
+    createdAt: review.createdAt,
+    updatedAt: review.updatedAt,
+  };
+}
 
 
 
@@ -42,6 +78,26 @@ export const createReview = async (req, res) => {
     }
 
 
+    const existingReview = await Review.findOne({
+      contractId,
+      milestoneId,
+      reviewerId,
+      recipientId,
+    });
+
+    if (existingReview) {
+      existingReview.rating = rating;
+      existingReview.comment = comment || '';
+      existingReview.visibility = visibility || 'public';
+      existingReview.status = 'approved';
+      await existingReview.save();
+
+      return res.status(200).json({
+        message: 'Review updated successfully',
+        review: await serializeReview(existingReview),
+      });
+    }
+
     const newReview = new Review({
       contractId,
       milestoneId,
@@ -58,7 +114,7 @@ export const createReview = async (req, res) => {
 
     return res.status(201).json({
       message: 'Review created successfully',
-      review: newReview,
+      review: await serializeReview(newReview),
     });
 
   } catch (error) {
@@ -81,14 +137,14 @@ export const getUserReviews = async (req, res) => {
       visibility,
       status: 'approved',
     })
-      .populate('reviewerId', 'fullName avatar email role')
-      .populate('recipientId', 'fullName avatar email role')
       .sort({ createdAt: -1 });
+
+    const serializedReviews = await Promise.all(reviews.map(serializeReview));
 
     return res.status(200).json({
       message: 'User reviews fetched successfully',
-      reviews,
-      totalReviews: reviews.length,
+      reviews: serializedReviews,
+      totalReviews: serializedReviews.length,
     });
   } catch (error) {
     console.error('Error fetching user reviews:', error);
@@ -115,14 +171,14 @@ export const getMilestoneReviews = async (req, res) => {
       milestoneId,
       status: 'approved',
     })
-      .populate('reviewerId', 'fullName avatar email role')
-      .populate('recipientId', 'fullName avatar email role')
       .sort({ createdAt: -1 });
+
+    const serializedReviews = await Promise.all(reviews.map(serializeReview));
 
     return res.status(200).json({
       message: 'Milestone reviews fetched successfully',
-      reviews,
-      totalReviews: reviews.length,
+      reviews: serializedReviews,
+      totalReviews: serializedReviews.length,
     });
   } catch (error) {
     console.error('Error fetching milestone reviews:', error);
@@ -137,15 +193,13 @@ export const getPendingReviews = async (req, res) => {
       return res.status(403).json({ message: 'Admin access required' });
     }
 
-    const reviews = await Review.find({ status: 'pending' })
-      .populate('reviewerId', 'fullName avatar email role')
-      .populate('recipientId', 'fullName avatar email role')
-      .sort({ createdAt: -1 });
+    const reviews = await Review.find({ status: 'pending' }).sort({ createdAt: -1 });
+    const serializedReviews = await Promise.all(reviews.map(serializeReview));
 
     return res.status(200).json({
       message: 'Pending reviews fetched successfully',
-      reviews,
-      totalPending: reviews.length,
+      reviews: serializedReviews,
+      totalPending: serializedReviews.length,
     });
   } catch (error) {
     console.error('Error fetching pending reviews:', error);

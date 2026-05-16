@@ -129,6 +129,20 @@ export function createAccountSchema({ allowedRoles, defaultRole }) {
             trim: true,
             default: '',
           },
+          cvFileName: {
+            type: String,
+            trim: true,
+            default: '',
+          },
+          cvFileType: {
+            type: String,
+            trim: true,
+            default: '',
+          },
+          cvDataUrl: {
+            type: String,
+            default: '',
+          },
         },
         bankAccount: {
           bankName: {
@@ -150,6 +164,19 @@ export function createAccountSchema({ allowedRoles, defaultRole }) {
             type: String,
             trim: true,
             default: '',
+          },
+          isFrozen: {
+            type: Boolean,
+            default: false,
+          },
+          frozenReason: {
+            type: String,
+            trim: true,
+            default: '',
+          },
+          frozenAt: {
+            type: Date,
+            default: null,
           },
         },
       },

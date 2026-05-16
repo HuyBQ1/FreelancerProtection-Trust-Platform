@@ -1,3 +1,5 @@
+import { formatMoney, normalizeMoneyDisplay, parseMoneyAmount } from './money';
+
 function formatDisplayDate(dateLike) {
   if (!dateLike) {
     return 'Open';
@@ -24,17 +26,11 @@ function parseTimeline(timeline) {
 }
 
 function parseBudgetNumber(budget) {
-  const normalized = `${budget || ''}`.replace(/[^0-9.]/g, '');
-  const parsed = Number.parseFloat(normalized);
-  return Number.isFinite(parsed) ? parsed : 0;
+  return parseMoneyAmount(budget);
 }
 
 function formatCurrency(amount) {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    maximumFractionDigits: 0,
-  }).format(amount || 0);
+  return formatMoney(amount);
 }
 
 function buildDefaultMilestones(job) {
@@ -46,26 +42,26 @@ function buildDefaultMilestones(job) {
     {
       title: {
         en: 'Kickoff and scope alignment',
-        vi: 'Kickoff and scope alignment',
+        vi: 'Khởi động và thống nhất phạm vi',
       },
       dueDate: formatDisplayDate(job.acceptedAt || job.createdAt),
       amount: kickoffAmount > 0 ? formatCurrency(kickoffAmount) : job.budget,
       status: 'In Progress',
       action: 'Submit Work',
       reviewAction: 'View Brief',
-      reviewNote: job.scopeSummary || 'Start by aligning on scope, deliverables, and the first approval checkpoint.',
+      reviewNote: job.scopeSummary || 'Bắt đầu bằng việc thống nhất phạm vi, sản phẩm bàn giao và mốc phê duyệt đầu tiên.',
     },
     {
       title: {
         en: 'Final delivery and approval',
-        vi: 'Final delivery and approval',
+        vi: 'Bàn giao cuối cùng và phê duyệt',
       },
       dueDate: parseTimeline(job.timeline),
       amount: finalAmount > 0 ? formatCurrency(finalAmount) : job.budget,
       status: 'Pending',
       action: null,
       reviewAction: null,
-      reviewNote: 'This milestone will move forward once the kickoff phase is approved.',
+      reviewNote: 'Milestone này sẽ được mở khi giai đoạn khởi động đã được phê duyệt.',
     },
   ];
 }
@@ -114,7 +110,7 @@ function normalizeMilestone(milestone, index) {
     ...milestone,
     title,
     dueDate: `${milestone?.dueDate || 'Flexible'}`.trim() || 'Flexible',
-    amount: `${milestone?.amount || '$0'}`.trim() || '$0',
+    amount: normalizeMoneyDisplay(milestone?.amount || 0),
     status,
     action: milestone?.action || null,
     reviewAction: milestone?.reviewAction || null,
@@ -144,8 +140,8 @@ export function normalizeContractForView(contract, fallbackIndex = 0) {
     id: `${contract?.id ?? `contract-${fallbackIndex + 1}`}`,
     title: normalizeLocalizedText(contract?.title, 'Untitled contract'),
     client: `${contract?.client || contract?.clientName || contract?.assignedFreelancerName || 'Unknown client'}`.trim() || 'Unknown client',
-    budget: `${contract?.budget || '$0'}`.trim() || '$0',
-    earned: `${contract?.earned || '$0'}`.trim() || '$0',
+    budget: normalizeMoneyDisplay(contract?.budget || 0),
+    earned: normalizeMoneyDisplay(contract?.earned || 0),
     startDate: `${contract?.startDate || 'Open'}`.trim() || 'Open',
     endDate: `${contract?.endDate || 'Flexible'}`.trim() || 'Flexible',
     progress,
@@ -154,6 +150,19 @@ export function normalizeContractForView(contract, fallbackIndex = 0) {
     status,
     milestones,
   };
+}
+
+export function sortContractsByWorkState(contracts) {
+  return [...contracts].sort((first, second) => {
+    const firstCompleted = first?.status === 'Completed';
+    const secondCompleted = second?.status === 'Completed';
+
+    if (firstCompleted === secondCompleted) {
+      return 0;
+    }
+
+    return firstCompleted ? 1 : -1;
+  });
 }
 
 export function createContractFromAcceptedJob(job) {
@@ -165,6 +174,9 @@ export function createContractFromAcceptedJob(job) {
   return normalizeContractForView({
     id: `job-contract-${job.id}`,
     sourceJobId: job.id,
+    clientId: job.clientId || null,
+    assignedFreelancerId: job.assignedFreelancerId || null,
+    assignedFreelancerName: job.assignedFreelancerName || '',
     initials: (job.client || 'CL')
       .split(' ')
       .filter(Boolean)
@@ -177,13 +189,14 @@ export function createContractFromAcceptedJob(job) {
     },
     client: job.client,
     budget: job.budget,
-    earned: contractState.earned || '$0',
+    earned: contractState.earned || formatCurrency(0),
     startDate: formatDisplayDate(job.acceptedAt || job.createdAt),
     endDate: parseTimeline(job.timeline),
     progress: contractState.progress ?? 0,
     completedMilestones: contractState.completedMilestones ?? 0,
     totalMilestones: contractState.totalMilestones ?? milestones.length,
     status: contractState.status || 'Active',
+    onlineContract: job.onlineContract || null,
     source: 'job-acceptance',
     milestones,
   });

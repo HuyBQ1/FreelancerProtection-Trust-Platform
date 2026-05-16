@@ -1,6 +1,6 @@
-import React, { useCallback, useState, useEffect, useRef } from 'react';
-import { ArrowDownLeft, ArrowUpRight, BriefcaseBusiness, CircleDollarSign, ClipboardCheck, Download, Eye, FileUp, Landmark, MessageSquareMore, PencilLine, Plus, Receipt, Search, Send, Shield, ShieldCheck, Trash2, Users, Wallet, X, XCircle } from 'lucide-react';
-import { useLocation, useNavigate } from 'react-router-dom';
+﻿import React, { useCallback, useState, useEffect, useRef } from 'react';
+import { ArrowDownLeft, ArrowUpRight, BriefcaseBusiness, CircleDollarSign, ClipboardCheck, Download, Eye, FileCheck2, FileUp, Landmark, MessageSquareMore, PencilLine, Plus, Receipt, Search, Send, Shield, ShieldCheck, Trash2, Users, Wallet, X, XCircle } from 'lucide-react';
+import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import Sidebar from '../components/Sidebar';
 import Topbar from '../components/Topbar';
 import StatCard from '../components/StatCard';
@@ -8,41 +8,146 @@ import SectionCard from '../components/SectionCard';
 import JobCard from '../components/JobCard';
 import ChatPanel from '../components/ChatPanel';
 import SettingsPanel from '../components/SettingsPanel';
+import AppErrorBoundary from '../components/AppErrorBoundary';
 import PaymentCenter from '../components/PaymentCenter';
-import { contracts, disputes, freelancerProfiles, sidebarItems } from '../data/appData';
-import { createContractFromAcceptedJob, normalizeContractForView } from '../utils/contractTransforms';
+import ReviewPanel from '../components/ReviewPanel';
+import DisputeCenter from '../features/disputes/DisputeCenter';
+import { contracts, freelancerProfiles, sidebarItems } from '../data/appData';
+import { createContractFromAcceptedJob, normalizeContractForView, sortContractsByWorkState } from '../utils/contractTransforms';
+import { persistLanguage } from '../utils/language';
+import { formatMoney, parseMoneyAmount } from '../utils/money';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
 const TOKEN_KEY = 'fptp_token';
 const pageTabs = ['dashboard', 'marketplace', 'contracts', 'chat', 'escrow', 'disputes'];
-const labels = {
-  Dashboard: 'Dashboard',
-  Jobs: 'Jobs',
-  Contracts: 'Contracts',
-  Chat: 'Chat',
-  'Bank Account': 'Bank Account',
-  Payments: 'Payments',
-  Disputes: 'Disputes',
-  workspace: 'Workspace',
-  trustCenter: 'Client Console',
-  workspaceDesc: 'Manage hiring, approvals, payments, and disputes from one client command center.',
-  balanceProtected: 'Available balance',
-  balanceDesc: 'Shared balance used across your active supplier contracts.',
-};
-const titles = {
-  dashboard: 'Client Dashboard',
-  marketplace: 'Talent Marketplace',
-  contracts: 'Client Contracts',
-  chat: 'Client Chat',
-  bank: 'Bank Account',
-  escrow: 'Payments',
-  disputes: 'Disputes',
-  settings: 'Settings',
-};
+function getLabels(language) {
+  if (language === 'vi') {
+    return {
+      Dashboard: 'Tổng quan',
+      Profile: 'Hồ sơ',
+      Jobs: 'Công việc',
+      Contracts: 'Hợp đồng',
+      Chat: 'Trò chuyện',
+      'Bank Account': 'Tài khoản ngân hàng',
+      Payments: 'Thanh toán',
+      Disputes: 'Tranh chấp',
+      workspace: 'Không gian làm việc',
+      trustCenter: 'Bảng điều khiển khách hàng',
+      workspaceDesc: 'Quản lý tuyển dụng, phê duyệt, thanh toán và tranh chấp trong một trung tâm điều hành.',
+      balanceProtected: 'Số dư khả dụng',
+      balanceDesc: 'Số dư dùng chung cho các hợp đồng với đối tác của bạn.',
+    };
+  }
+
+  return {
+    Dashboard: 'Dashboard',
+    Profile: 'Profile',
+    Jobs: 'Jobs',
+    Contracts: 'Contracts',
+    Chat: 'Chat',
+    'Bank Account': 'Bank Account',
+    Payments: 'Payments',
+    Disputes: 'Disputes',
+    workspace: 'Workspace',
+    trustCenter: 'Client Console',
+    workspaceDesc: 'Manage hiring, approvals, payments, and disputes from one client command center.',
+    balanceProtected: 'Available balance',
+    balanceDesc: 'Shared balance used across your active supplier contracts.',
+  };
+}
+
+function getTitles(language) {
+  if (language === 'vi') {
+    return {
+      dashboard: 'Bảng điều khiển khách hàng',
+      marketplace: 'Thị trường nhân sự',
+      contracts: 'Hợp đồng khách hàng',
+      chat: 'Trò chuyện khách hàng',
+      bank: 'Tài khoản ngân hàng',
+      escrow: 'Thanh toán',
+      disputes: 'Tranh chấp',
+      settings: 'Cài đặt',
+    };
+  }
+
+  return {
+    dashboard: 'Client Dashboard',
+    marketplace: 'Talent Marketplace',
+    contracts: 'Client Contracts',
+    chat: 'Client Chat',
+    bank: 'Bank Account',
+    escrow: 'Payments',
+    disputes: 'Disputes',
+    settings: 'Settings',
+  };
+}
+
+function getCleanLabels(language) {
+  if (language === 'vi') {
+    return {
+      Dashboard: 'Tổng quan',
+      Profile: 'Hồ sơ',
+      Jobs: 'Công việc',
+      Contracts: 'Hợp đồng',
+      Chat: 'Trò chuyện',
+      'Bank Account': 'Tài khoản ngân hàng',
+      Payments: 'Thanh toán',
+      Disputes: 'Tranh chấp',
+      workspace: 'Không gian làm việc',
+      trustCenter: 'Bảng điều khiển khách hàng',
+      workspaceDesc: 'Quản lý tuyển dụng, phê duyệt, thanh toán và tranh chấp trong một trung tâm điều hành.',
+      balanceProtected: 'Số dư khả dụng',
+      balanceDesc: 'Số dư dùng chung cho các hợp đồng với đối tác của bạn.',
+    };
+  }
+
+  return getLabels(language);
+}
+
+function getCleanTitles(language) {
+  if (language === 'vi') {
+    return {
+      dashboard: 'Bảng điều khiển khách hàng',
+      marketplace: 'Thị trường nhân sự',
+      contracts: 'Hợp đồng khách hàng',
+      chat: 'Trò chuyện khách hàng',
+      bank: 'Tài khoản ngân hàng',
+      escrow: 'Thanh toán',
+      disputes: 'Tranh chấp',
+      settings: 'Cài đặt',
+    };
+  }
+
+  return getTitles(language);
+}
 const clientActivities = [
-  { title: 'Proposal shortlist updated', description: '3 freelancers were moved to the final review stage for the dashboard redesign role.', time: '20 minutes ago', icon: Users },
-  { title: 'Milestone awaiting approval', description: 'Prototype & Animations was submitted and is waiting for your review.', time: '2 hours ago', icon: ClipboardCheck },
-  { title: 'Balance updated successfully', description: 'A new payment action was confirmed for the mobile app design contract.', time: 'Yesterday', icon: Shield },
+  {
+    title: { en: 'Proposal shortlist updated', vi: 'Danh sách chào giá đã được cập nhật' },
+    description: {
+      en: '3 freelancers were moved to the final review stage for the dashboard redesign role.',
+      vi: '3 freelancer đã được đưa vào vòng đánh giá cuối cho vị trí thiết kế lại bảng điều khiển.',
+    },
+    time: { en: '20 minutes ago', vi: '20 phút trước' },
+    icon: Users,
+  },
+  {
+    title: { en: 'Milestone awaiting approval', vi: 'Milestone đang chờ phê duyệt' },
+    description: {
+      en: 'Prototype & Animations was submitted and is waiting for your review.',
+      vi: 'Prototype & Animations đã được gửi và đang chờ bạn xem xét.',
+    },
+    time: { en: '2 hours ago', vi: '2 giờ trước' },
+    icon: ClipboardCheck,
+  },
+  {
+    title: { en: 'Balance updated successfully', vi: 'Số dư đã được cập nhật thành công' },
+    description: {
+      en: 'A new payment action was confirmed for the mobile app design contract.',
+      vi: 'Một thao tác thanh toán mới đã được xác nhận cho hợp đồng thiết kế ứng dụng di động.',
+    },
+    time: { en: 'Yesterday', vi: 'Hôm qua' },
+    icon: Shield,
+  },
 ];
 
 function readStoredUser() {
@@ -79,20 +184,12 @@ function getSubmissionPreviewType(submission) {
   return 'download';
 }
 
-function formatMoney(amount) {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    maximumFractionDigits: 0,
-  }).format(amount || 0);
-}
-
-function getTransactionLabel(type) {
-  if (type === 'deposit') return 'Deposit';
-  if (type === 'release') return 'Release payment';
-  if (type === 'withdrawal') return 'Withdrawal';
-  if (type === 'refund') return 'Refund';
-  return 'Transaction';
+function getTransactionLabel(type, language = 'en') {
+  if (type === 'deposit') return language === 'vi' ? 'Nạp tiền' : 'Deposit';
+  if (type === 'release') return language === 'vi' ? 'Giải ngân' : 'Release payment';
+  if (type === 'withdrawal') return language === 'vi' ? 'Rút tiền' : 'Withdrawal';
+  if (type === 'refund') return language === 'vi' ? 'Hoàn tiền' : 'Refund';
+  return language === 'vi' ? 'Giao dịch' : 'Transaction';
 }
 
 function getTransactionTone(type) {
@@ -119,18 +216,28 @@ function getTransactionTone(type) {
   };
 }
 
-function formatTransactionTime(value) {
-  if (!value) return 'Just now';
+function formatTransactionTime(value, language = 'en') {
+  if (!value) return language === 'vi' ? 'Vừa xong' : 'Just now';
 
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return 'Just now';
+  if (Number.isNaN(date.getTime())) return language === 'vi' ? 'Vừa xong' : 'Just now';
 
-  return date.toLocaleString('en-US', {
+  return date.toLocaleString(language === 'vi' ? 'vi-VN' : 'en-US', {
     month: 'short',
     day: 'numeric',
     hour: 'numeric',
     minute: '2-digit',
   });
+}
+
+function localizeContractStatus(status, language) {
+  if (language !== 'vi') return status;
+  if (status === 'Approved') return 'Đã duyệt';
+  if (status === 'Completed') return 'Hoàn tất';
+  if (status === 'In Progress') return 'Đang thực hiện';
+  if (status === 'Pending') return 'Chờ xử lý';
+  if (status === 'Active') return 'Đang hoạt động';
+  return status;
 }
 
 function ClientDashboard() {
@@ -152,9 +259,26 @@ function ClientDashboard() {
   const [walletLoading, setWalletLoading] = useState(false);
   const [recentTransactions, setRecentTransactions] = useState([]);
   const [reviewModal, setReviewModal] = useState({ open: false, contract: null, milestone: null, milestoneIndex: -1 });
+  const [signatureModal, setSignatureModal] = useState({ open: false, contract: null });
+  const [contractSignature, setContractSignature] = useState(user?.companyName || user?.fullName || '');
+  const [contractSignatureImage, setContractSignatureImage] = useState('');
+  const [signingContract, setSigningContract] = useState(false);
+  const [contractReviewModal, setContractReviewModal] = useState({ open: false, contract: null, milestoneIndex: -1, recipientId: '', recipientName: '' });
   const [reviewZoom, setReviewZoom] = useState(1);
   const [reviewPan, setReviewPan] = useState({ x: 0, y: 0 });
   const dragStateRef = useRef({ active: false, startX: 0, startY: 0, panX: 0, panY: 0 });
+  const signatureCanvasRef = useRef(null);
+  const signatureDrawingRef = useRef(false);
+  const language = user?.settings?.language || 'en';
+  const labels = getCleanLabels(language);
+  const titles = getCleanTitles(language);
+  const topbarSubtitle = language === 'vi'
+    ? 'Không gian khách hàng cho phê duyệt, thanh toán và quản lý đối tác'
+    : 'Client workspace for approvals, payments, and supplier management';
+  const topbarCopy = {
+    role: language === 'vi' ? 'khách hàng' : 'client',
+    logout: language === 'vi' ? 'Đăng xuất' : 'Logout',
+  };
 
   useEffect(() => {
     if (location.state?.initialPage) {
@@ -174,32 +298,33 @@ function ClientDashboard() {
     }
   }, [location.state]);
 
-  useEffect(() => {
-    const fetchSummary = async () => {
-      try {
-        const token = localStorage.getItem('fptp_token');
-        if (!token) return;
-        const res = await fetch(`${API_BASE_URL}/escrow/summary`, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        const data = await res.json();
-        if (data.summary) {
-          if (data.summary.balance !== undefined) {
-            setAvailableBalance(data.summary.balance);
-          }
-          if (data.summary.pendingBalance !== undefined) {
-            setPendingBalance(data.summary.pendingBalance);
-          }
-          if (Array.isArray(data.summary.recentTransactions)) {
-            setRecentTransactions(data.summary.recentTransactions);
-          }
+  const fetchEscrowSummary = useCallback(async () => {
+    try {
+      const token = localStorage.getItem('fptp_token');
+      if (!token) return;
+      const res = await fetch(`${API_BASE_URL}/escrow/summary`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (data.summary) {
+        if (data.summary.balance !== undefined) {
+          setAvailableBalance(data.summary.balance);
         }
-      } catch (err) {
-        console.error('Failed to fetch escrow summary:', err);
+        if (data.summary.pendingBalance !== undefined) {
+          setPendingBalance(data.summary.pendingBalance);
+        }
+        if (Array.isArray(data.summary.recentTransactions)) {
+          setRecentTransactions(data.summary.recentTransactions);
+        }
       }
-    };
-    fetchSummary();
-  }, [user, activePage]);
+    } catch (err) {
+      console.error('Failed to fetch escrow summary:', err);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchEscrowSummary();
+  }, [fetchEscrowSummary, user, activePage]);
 
   const fetchMyJobs = useCallback(async () => {
     try {
@@ -237,6 +362,37 @@ function ClientDashboard() {
     }
   }, [activePage, fetchMyJobs]);
 
+  useEffect(() => {
+    const refreshClientData = () => {
+      if (document.hidden) return;
+      fetchMyJobs();
+      fetchEscrowSummary();
+    };
+
+    const handleVisibilityChange = () => {
+      if (!document.hidden) refreshClientData();
+    };
+
+    const handleRealtimeNotification = (event) => {
+      const page = event.detail?.actionPage;
+      if (!page || ['contracts', 'marketplace', 'escrow', 'disputes'].includes(page)) {
+        refreshClientData();
+      }
+    };
+
+    const intervalId = window.setInterval(refreshClientData, 5000);
+    window.addEventListener('focus', refreshClientData);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('fptp:notification', handleRealtimeNotification);
+
+    return () => {
+      window.clearInterval(intervalId);
+      window.removeEventListener('focus', refreshClientData);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('fptp:notification', handleRealtimeNotification);
+    };
+  }, [fetchEscrowSummary, fetchMyJobs]);
+
   const handleDealUpdated = (updatedJob) => {
     if (!updatedJob?.id) return;
 
@@ -253,8 +409,32 @@ function ClientDashboard() {
   const acceptedContracts = postedJobs
     .filter((job) => job.status === 'assigned')
     .map(createContractFromAcceptedJob);
-  const contractList = acceptedContracts.map((contract, index) => normalizeContractForView(contract, index));
+  const contractList = sortContractsByWorkState(acceptedContracts.map((contract, index) => normalizeContractForView(contract, index)));
   const selectedClientContract = contractList.find((item) => `${item.id}` === `${selectedContractId}`) ?? contractList[0];
+  const selectedContractLastApprovedMilestoneIndex = selectedClientContract
+    ? [...selectedClientContract.milestones]
+        .map((milestone, index) => ({ milestone, index }))
+        .filter(({ milestone }) => milestone.status === 'Approved')
+        .map(({ index }) => index)
+        .pop()
+    : -1;
+  const isSelectedClientContractCompleted = Boolean(
+    selectedClientContract
+    && (
+      selectedClientContract.status === 'Completed'
+      || selectedClientContract.milestones.every((milestone) => milestone.status === 'Approved')
+    ),
+  );
+  const canReviewFreelancer = Boolean(
+    selectedClientContract?.sourceJobId
+    && selectedClientContract?.assignedFreelancerId
+    && isSelectedClientContractCompleted
+    && selectedContractLastApprovedMilestoneIndex >= 0,
+  );
+  const activePostedJobs = postedJobs.filter((job) => (
+    job.status !== 'closed'
+    && job.contractState?.status !== 'Completed'
+  ));
 
   useEffect(() => {
     if (contractList.length > 0 && !contractList.some((item) => `${item.id}` === `${selectedContractId}`)) {
@@ -269,6 +449,7 @@ function ClientDashboard() {
   };
 
   const handleLanguageChange = (language) => {
+    persistLanguage(language);
     const nextUser = {
       ...user,
       settings: {
@@ -279,6 +460,23 @@ function ClientDashboard() {
 
     setUser(nextUser);
     localStorage.setItem('fptp_user', JSON.stringify(nextUser));
+  };
+
+  const handleSidebarNavigate = (page) => {
+    if (page === 'profile') {
+      navigate(`/client-profile/${user?.id || user?._id || 'me'}`, {
+        state: {
+          profileSeed: {
+            id: user?.id || user?._id || '',
+            fullName: user?.fullName || user?.companyName || user?.email || '',
+            email: user?.email || '',
+          },
+        },
+      });
+      return;
+    }
+
+    setActivePage(page);
   };
 
   const openContractBrief = (contract) => {
@@ -297,6 +495,158 @@ function ClientDashboard() {
     setReviewZoom(1);
     setReviewPan({ x: 0, y: 0 });
     setReviewModal({ open: false, contract: null, milestone: null, milestoneIndex: -1 });
+  };
+
+  const closeSignatureModal = () => {
+    setSignatureModal({ open: false, contract: null });
+    setContractSignature(user?.companyName || user?.fullName || '');
+    setContractSignatureImage('');
+  };
+
+  const clearSignatureCanvas = () => {
+    const canvas = signatureCanvasRef.current;
+    if (!canvas) return;
+    const context = canvas.getContext('2d');
+    context.clearRect(0, 0, canvas.width, canvas.height);
+    context.fillStyle = '#ffffff';
+    context.fillRect(0, 0, canvas.width, canvas.height);
+  };
+
+  const getSignaturePoint = (event) => {
+    const canvas = signatureCanvasRef.current;
+    const rect = canvas.getBoundingClientRect();
+    const pointer = event.touches?.[0] || event;
+    return {
+      x: ((pointer.clientX - rect.left) / rect.width) * canvas.width,
+      y: ((pointer.clientY - rect.top) / rect.height) * canvas.height,
+    };
+  };
+
+  const startSignatureDraw = (event) => {
+    event.preventDefault();
+    const canvas = signatureCanvasRef.current;
+    if (!canvas) return;
+    signatureDrawingRef.current = true;
+    const context = canvas.getContext('2d');
+    const point = getSignaturePoint(event);
+    context.beginPath();
+    context.moveTo(point.x, point.y);
+  };
+
+  const drawSignature = (event) => {
+    if (!signatureDrawingRef.current) return;
+    event.preventDefault();
+    const canvas = signatureCanvasRef.current;
+    if (!canvas) return;
+    const context = canvas.getContext('2d');
+    const point = getSignaturePoint(event);
+    context.lineTo(point.x, point.y);
+    context.strokeStyle = '#0f172a';
+    context.lineWidth = 3;
+    context.lineCap = 'round';
+    context.lineJoin = 'round';
+    context.stroke();
+  };
+
+  const stopSignatureDraw = () => {
+    signatureDrawingRef.current = false;
+  };
+
+  useEffect(() => {
+    if (!signatureModal.open) return;
+    const timeoutId = window.setTimeout(clearSignatureCanvas, 50);
+    return () => window.clearTimeout(timeoutId);
+  }, [signatureModal.open]);
+
+  const signOnlineContract = async (contract) => {
+    if (!contract?.sourceJobId) {
+      setContractFeedback({ type: 'error', message: 'This contract is not linked to a database job.' });
+      return;
+    }
+
+    if (!contractSignature.trim()) {
+      setContractFeedback({ type: 'error', message: language === 'vi' ? 'Vui lòng nhập họ tên hoặc tên công ty để ký hợp đồng.' : 'Please enter your name or company name to sign.' });
+      return;
+    }
+
+    const token = localStorage.getItem(TOKEN_KEY);
+    if (!token) {
+      setContractFeedback({ type: 'error', message: 'Please log in again before signing.' });
+      return;
+    }
+
+    if (!contractSignatureImage) {
+      setContractFeedback({ type: 'error', message: language === 'vi' ? 'Vui lòng upload ảnh chữ ký trước khi xác nhận.' : 'Please upload a signature image before confirming.' });
+      return;
+    }
+
+    setSigningContract(true);
+    try {
+      const response = await fetch(`${API_BASE_URL}/jobs/${contract.sourceJobId}/contract/sign`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ signature: contractSignature.trim(), signatureImage: contractSignatureImage }),
+      });
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        setContractFeedback({ type: 'error', message: data.message || 'Could not sign this contract.' });
+        return;
+      }
+
+      setPostedJobs((currentJobs) => currentJobs.map((job) => (`${job.id}` === `${data.job.id}` ? data.job : job)));
+      closeSignatureModal();
+      setContractFeedback({
+        type: 'success',
+        message: data.job?.onlineContract?.status === 'signed'
+          ? (language === 'vi' ? 'Hai bên đã ký hợp đồng. Công việc có thể bắt đầu.' : 'Both parties signed the contract. Work can begin.')
+          : (language === 'vi' ? 'Client đã ký hợp đồng. Đang chờ freelancer ký.' : 'Client signature submitted. Waiting for freelancer signature.'),
+      });
+      await fetchMyJobs();
+    } catch (error) {
+      console.error('Failed to sign contract:', error);
+      setContractFeedback({ type: 'error', message: 'Something went wrong while signing this contract.' });
+    } finally {
+      setSigningContract(false);
+    }
+  };
+
+  const handleSignatureUpload = (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      setContractFeedback({ type: 'error', message: language === 'vi' ? 'Vui lòng chọn tệp hình ảnh chữ ký.' : 'Please choose an image file for the signature.' });
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => setContractSignatureImage(`${reader.result || ''}`);
+    reader.readAsDataURL(file);
+  };
+
+  const downloadOnlineContract = async (contract) => {
+    if (!contract?.sourceJobId) return;
+    const token = localStorage.getItem(TOKEN_KEY);
+    if (!token) return;
+    const response = await fetch(`${API_BASE_URL}/jobs/${contract.sourceJobId}/contract/download`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!response.ok) {
+      setContractFeedback({ type: 'error', message: language === 'vi' ? 'Không thể tải hợp đồng.' : 'Could not download the contract.' });
+      return;
+    }
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${contract.title?.[language] || contract.onlineContract?.title || 'online-contract'}.doc`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
   };
 
   const handleMilestoneApproval = async (contract, milestone, milestoneIndex) => {
@@ -517,7 +867,7 @@ function ClientDashboard() {
   }, [reviewModal.open]);
 
   const releasePayment = async () => {
-    const releaseAmount = Number(walletAmount);
+  const releaseAmount = parseMoneyAmount(walletAmount);
     setWalletStatus({ type: '', message: '' });
 
     if (!Number.isFinite(releaseAmount) || releaseAmount <= 0) {
@@ -569,7 +919,7 @@ function ClientDashboard() {
   };
 
   const topUpBalance = async () => {
-    const topUpAmount = Number(walletAmount);
+  const topUpAmount = parseMoneyAmount(walletAmount);
     setWalletStatus({ type: '', message: '' });
 
     if (!Number.isFinite(topUpAmount) || topUpAmount <= 0) {
@@ -626,11 +976,11 @@ function ClientDashboard() {
   const dashboardLayout = (content) => (
     <div className={`${activePage === 'chat' ? 'h-screen overflow-hidden' : 'min-h-screen'} bg-slate-100/80`}>
       <div className={`mx-auto flex w-full max-w-[1680px] gap-6 px-4 py-4 sm:px-6 xl:px-8 ${activePage === 'chat' ? 'h-full overflow-hidden' : ''}`}>
-        <Sidebar items={sidebarItems} activePage={activePage} onNavigate={setActivePage} labels={labels} />
+        <Sidebar items={sidebarItems} activePage={activePage} onNavigate={handleSidebarNavigate} labels={labels} balanceValue={formatMoney(availableBalance)} />
         <div className={`min-w-0 flex-1 ${activePage === 'chat' ? 'flex min-h-0 flex-col space-y-4 overflow-hidden' : 'space-y-6'}`}>
           <Topbar
             title={titles[activePage]}
-            subtitle="Client workspace for approvals, protected payments, and supplier management"
+            subtitle={language === 'vi' ? 'Không gian khách hàng cho phê duyệt, thanh toán và quản lý đối tác' : 'Client workspace for approvals, protected payments, and supplier management'}
             onLogout={logout}
             onOpenSettings={() => {
               setSettingsSection('profile');
@@ -638,6 +988,10 @@ function ClientDashboard() {
             }}
             onOpenBankSettings={() => {
               setActivePage('bank');
+            }}
+            onOpenKycSettings={() => {
+              setSettingsSection('kyc');
+              setActivePage('settings');
             }}
             onNotificationOpen={(notification) => {
               if (notification?.actionPage === 'chat') {
@@ -661,7 +1015,7 @@ function ClientDashboard() {
             }}
             language={user?.settings?.language || 'en'}
             onLanguageChange={handleLanguageChange}
-            copy={{ role: 'client', logout: 'Logout' }}
+            copy={{ role: language === 'vi' ? 'khách hàng' : 'client', logout: language === 'vi' ? 'Đăng xuất' : 'Logout' }}
             user={user}
           />
           <div className="flex flex-wrap gap-2">
@@ -691,22 +1045,33 @@ function ClientDashboard() {
         <SectionCard className="p-6">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
-              <p className="muted">Talent Marketplace</p>
-              <h2 className="mt-1 text-xl font-bold text-ink">Freelancer profiles ready for client review</h2>
+              <p className="muted">{language === 'vi' ? 'Thị trường freelancer' : 'Talent Marketplace'}</p>
+              <h2 className="mt-1 text-xl font-bold text-ink">
+                {language === 'vi' ? 'Hồ sơ freelancer sẵn sàng để khách hàng xem xét' : 'Freelancer profiles ready for client review'}
+              </h2>
             </div>
             <label className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
               <Search className="h-4 w-4 text-slate-400" />
-              <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search talent or briefs" className="w-full bg-transparent text-sm outline-none placeholder:text-slate-400 sm:w-60" />
+              <input
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder={language === 'vi' ? 'Tìm freelancer hoặc brief' : 'Search talent or briefs'}
+                className="w-full bg-transparent text-sm outline-none placeholder:text-slate-400 sm:w-60"
+              />
             </label>
           </div>
         </SectionCard>
         <SectionCard className="p-6">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div>
-              <p className="muted">Your job posts</p>
-              <h2 className="mt-1 text-xl font-bold text-ink">Create and manage hiring briefs</h2>
+              <p className="muted">{language === 'vi' ? 'Tin tuyển dụng của bạn' : 'Your job posts'}</p>
+              <h2 className="mt-1 text-xl font-bold text-ink">
+                {language === 'vi' ? 'Tạo và quản lý brief tuyển dụng' : 'Create and manage hiring briefs'}
+              </h2>
               <p className="mt-2 text-sm leading-6 text-slate-500">
-                Open any posted role to review the full brief, and create new jobs from a dedicated page.
+                {language === 'vi'
+                  ? 'Mở bất kỳ công việc nào đã đăng để xem toàn bộ brief, và tạo công việc mới từ trang riêng.'
+                  : 'Open any posted role to review the full brief, and create new jobs from a dedicated page.'}
               </p>
             </div>
             <button
@@ -715,7 +1080,7 @@ function ClientDashboard() {
               className="inline-flex items-center gap-2 rounded-2xl bg-ink px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
             >
               <Plus className="h-4 w-4" />
-              Add Job
+              {language === 'vi' ? 'Thêm công việc' : 'Add Job'}
             </button>
           </div>
           {jobStatus.message ? (
@@ -724,38 +1089,40 @@ function ClientDashboard() {
             </p>
           ) : null}
 
-          <div className="mt-6 grid gap-5 xl:grid-cols-2">
-            {postedJobs.map((job) => (
+          <div className="mt-6 grid gap-5">
+            {activePostedJobs.map((job) => (
               <div key={job.id} className="space-y-3">
                 <JobCard
                   job={job}
-                  labels={{ budget: 'Budget', client: 'Client' }}
-                  actionLabel="View Job"
+                  labels={{ budget: language === 'vi' ? 'Ngân sách' : 'Budget', client: language === 'vi' ? 'Khách hàng' : 'Client' }}
+                  actionLabel={language === 'vi' ? 'Xem công việc' : 'View Job'}
                   onAction={() => navigate(`/client-jobs/${job.id}`)}
                 />
-                <button
-                  type="button"
-                  onClick={() => navigate(`/client-jobs/${job.id}/edit`)}
-                  className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
-                >
-                  <PencilLine className="h-4 w-4" />
-                  Edit Job Post
-                </button>
-                <button
-                  type="button"
-                  onClick={() => deleteClientJob(job.id)}
-                  className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700 transition hover:border-rose-300 hover:bg-rose-100"
-                >
-                  <Trash2 className="h-4 w-4" />
-                  Delete Job
-                </button>
+                <div className="flex flex-wrap gap-3">
+                  <button
+                    type="button"
+                    onClick={() => navigate(`/client-jobs/${job.id}/edit`)}
+                    className="inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
+                  >
+                    <PencilLine className="h-4 w-4" />
+                    {language === 'vi' ? 'Sửa công việc' : 'Edit Job Post'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => deleteClientJob(job.id)}
+                    className="inline-flex items-center justify-center gap-2 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700 transition hover:border-rose-300 hover:bg-rose-100"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    {language === 'vi' ? 'Xóa công việc' : 'Delete Job'}
+                  </button>
+                </div>
               </div>
             ))}
           </div>
 
-          {postedJobs.length === 0 ? (
+          {activePostedJobs.length === 0 ? (
             <div className="mt-6 rounded-2xl border border-dashed border-slate-200 bg-white p-5 text-sm text-slate-500">
-              You have not posted any jobs yet. Use `Add Job` to create your first hiring brief.
+              {language === 'vi' ? 'Không còn công việc đang mở hoặc đang thực hiện. Các job đã hoàn tất nằm trong phần Hợp đồng.' : 'No open or active jobs remain. Completed jobs stay in Contracts.'}
             </div>
           ) : null}
         </SectionCard>
@@ -766,13 +1133,24 @@ function ClientDashboard() {
               job={{
                 title: item.fullName,
                 budget: item.hourlyRate,
-                client: `${item.rating} rating · ${item.completedJobs} jobs`,
+                client: `${item.rating} đánh giá · ${item.completedJobs} công việc`,
                 category: item.specialty,
                 description: item.headline,
               }}
               labels={{ budget: 'Rate', client: 'Track record' }}
               actionLabel="View Profile"
-              onAction={() => navigate(`/freelancer-profile/${item.id}`)}
+              onAction={() => navigate(`/freelancer-profile/${item.id}`, {
+                state: {
+                  profileSeed: {
+                    ...item,
+                    id: item.id,
+                    fullName: item.fullName,
+                    headline: item.headline,
+                    rating: item.rating,
+                    totalReviews: item.completedJobs,
+                  },
+                },
+              })}
             />
           ))}
         </div>
@@ -794,7 +1172,7 @@ function ClientDashboard() {
       return dashboardLayout(
         <SectionCard className="p-8">
           <p className="muted">Contracts</p>
-          <h2 className="mt-2 text-xl font-bold text-ink">No contracts available yet</h2>
+          <h2 className="mt-2 text-xl font-bold text-ink">{language === 'vi' ? 'Chưa có hợp đồng nào' : 'No contracts available yet'}</h2>
           <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-500">
             Accepted jobs and active supplier agreements will appear here once work is in progress.
           </p>
@@ -802,10 +1180,14 @@ function ClientDashboard() {
       );
     }
 
+    const requiresClientSignature = selectedClientContract.onlineContract?.status === 'pending_signature'
+      && !selectedClientContract.onlineContract?.clientSignature;
+    const isOnlineContractSigned = selectedClientContract.onlineContract?.status === 'signed';
+
     return dashboardLayout(
       <div className="space-y-6">
         <div>
-          <h2 className="text-3xl font-bold tracking-tight text-ink">Client contracts</h2>
+          <h2 className="text-3xl font-bold tracking-tight text-ink">{language === 'vi' ? 'Hợp đồng khách hàng' : 'Client contracts'}</h2>
           <p className="mt-2 text-sm text-slate-500">{contractList.length} supplier agreements under your review</p>
         </div>
         {contractFeedback.message ? (
@@ -817,19 +1199,69 @@ function ClientDashboard() {
           <div className="space-y-4">
             {contractList.map((contract) => (
               <button key={contract.id} onClick={() => setSelectedContractId(`${contract.id}`)} className={`w-full rounded-[26px] border bg-white p-5 text-left shadow-sm transition ${`${contract.id}` === `${selectedClientContract.id}` ? 'border-indigo-500 ring-2 ring-indigo-100' : 'border-slate-200 hover:border-slate-300'}`}>
-                <p className="text-xl font-semibold text-ink">{contract.title.en}</p>
+                <p className="text-xl font-semibold text-ink">{contract.title?.[language] || contract.title?.vi || contract.title?.en}</p>
                 <p className="mt-1 text-sm text-slate-500">{contract.client}</p>
                 <p className="mt-5 text-2xl font-bold text-ink">{contract.budget}</p>
               </button>
             ))}
           </div>
+          <div className="space-y-5">
+          {isOnlineContractSigned ? (
+            <div className="rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700">
+              {language === 'vi'
+                ? `Hợp đồng online đã đủ chữ ký: client ${selectedClientContract.onlineContract.clientSignature || 'client'} và freelancer ${selectedClientContract.onlineContract.freelancerSignature || 'freelancer'}.`
+                : `Online contract signed by client ${selectedClientContract.onlineContract.clientSignature || 'client'} and freelancer ${selectedClientContract.onlineContract.freelancerSignature || 'freelancer'}.`}
+            </div>
+          ) : selectedClientContract.onlineContract ? (
+            <div className="rounded-2xl border border-amber-100 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-700">
+              {language === 'vi'
+                ? `Hợp đồng đang chờ chữ ký: ${selectedClientContract.onlineContract.clientSignature ? 'còn freelancer' : 'còn client'} cần ký.`
+                : `Contract is waiting for signature: ${selectedClientContract.onlineContract.clientSignature ? 'freelancer' : 'client'} still needs to sign.`}
+            </div>
+          ) : null}
           <SectionCard className="p-6">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
               <div>
-                <h3 className="text-2xl font-bold text-ink">{selectedClientContract.title.en}</h3>
+                <h3 className="text-2xl font-bold text-ink">{selectedClientContract.title?.[language] || selectedClientContract.title?.vi || selectedClientContract.title?.en}</h3>
                 <p className="mt-2 text-slate-500">{selectedClientContract.client}</p>
               </div>
               <div className="flex shrink-0 items-center gap-3 whitespace-nowrap">
+                {selectedClientContract.onlineContract ? (
+                  <button
+                    type="button"
+                    onClick={() => downloadOnlineContract(selectedClientContract)}
+                    className="inline-flex min-w-[150px] items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                  >
+                    <Download className="h-4 w-4" />
+                    {language === 'vi' ? 'Tải hợp đồng Word' : 'Download Word'}
+                  </button>
+                ) : null}
+                {requiresClientSignature ? (
+                  <button
+                    type="button"
+                    onClick={() => setSignatureModal({ open: true, contract: selectedClientContract })}
+                    className="inline-flex min-w-[150px] items-center justify-center gap-2 rounded-xl bg-ink px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800"
+                  >
+                    <FileCheck2 className="h-4 w-4" />
+                    {language === 'vi' ? 'Ký hợp đồng' : 'Sign Contract'}
+                  </button>
+                ) : null}
+                {canReviewFreelancer ? (
+                  <button
+                    type="button"
+                    onClick={() => setContractReviewModal({
+                      open: true,
+                      contract: selectedClientContract,
+                      milestoneIndex: selectedContractLastApprovedMilestoneIndex,
+                      recipientId: selectedClientContract.assignedFreelancerId,
+                      recipientName: selectedClientContract.assignedFreelancerName || selectedClientContract.client,
+                    })}
+                    className="inline-flex min-w-[170px] items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-700 transition hover:border-emerald-300 hover:bg-emerald-100"
+                  >
+                    <MessageSquareMore className="h-4 w-4" />
+                    {language === 'vi' ? 'Đánh giá freelancer' : 'Review freelancer'}
+                  </button>
+                ) : null}
                 <button
                   type="button"
                   onClick={() => cancelClientContract(selectedClientContract)}
@@ -849,20 +1281,20 @@ function ClientDashboard() {
               </div>
             </div>
             <div className="mt-8 grid gap-6 md:grid-cols-3">
-              <div><p className="text-sm text-slate-500">Approved budget</p><p className="mt-2 text-2xl font-bold text-ink">{selectedClientContract.budget}</p></div>
-              <div><p className="text-sm text-slate-500">Released so far</p><p className="mt-2 text-2xl font-bold text-emerald-600">{selectedClientContract.earned}</p></div>
-              <div><p className="text-sm text-slate-500">Progress</p><p className="mt-2 text-2xl font-bold text-ink">{selectedClientContract.progress}%</p></div>
+              <div><p className="text-sm text-slate-500">{language === 'vi' ? 'Ngân sách đã duyệt' : 'Approved budget'}</p><p className="mt-2 text-2xl font-bold text-ink">{selectedClientContract.budget}</p></div>
+              <div><p className="text-sm text-slate-500">{language === 'vi' ? 'Đã giải ngân' : 'Released so far'}</p><p className="mt-2 text-2xl font-bold text-emerald-600">{selectedClientContract.earned}</p></div>
+              <div><p className="text-sm text-slate-500">{language === 'vi' ? 'Tiến độ' : 'Progress'}</p><p className="mt-2 text-2xl font-bold text-ink">{selectedClientContract.progress}%</p></div>
             </div>
             <div className="mt-8 space-y-4">
               {selectedClientContract.milestones.map((milestone, milestoneIndex) => (
-                <div key={milestone.title.en} className="rounded-2xl border border-slate-200 p-4">
+                <div key={milestone.title?.[language] || milestone.title?.vi || milestone.title?.en} className="rounded-2xl border border-slate-200 p-4">
                   <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
                     <div className="min-w-0">
                       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                        <p className="font-semibold text-ink">{milestone.title.en}</p>
-                        <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">{milestone.status}</span>
+                        <p className="font-semibold text-ink">{milestone.title?.[language] || milestone.title?.vi || milestone.title?.en}</p>
+                        <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">{localizeContractStatus(milestone.status, language)}</span>
                       </div>
-                      <p className="mt-2 text-sm text-slate-500">Due {milestone.dueDate} · {milestone.amount}</p>
+                      <p className="mt-2 text-sm text-slate-500">{language === 'vi' ? 'Hạn' : 'Due'} {milestone.dueDate} · {milestone.amount}</p>
                       <p className="mt-2 text-sm text-slate-500">{milestone.reviewNote}</p>
                     </div>
                     <div className="flex shrink-0 flex-wrap gap-2">
@@ -879,7 +1311,7 @@ function ClientDashboard() {
                           className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-indigo-200 hover:text-indigo-600"
                         >
                           <Eye className="h-4 w-4" />
-                          {milestone.reviewAction}
+                          {language === 'vi' ? (milestone.reviewAction === 'View Brief' ? 'Xem brief' : milestone.reviewAction === 'View Product' ? 'Xem sản phẩm' : milestone.reviewAction === 'View Draft' ? 'Xem bản nháp' : milestone.reviewAction === 'Review Product' ? 'Xem sản phẩm' : milestone.reviewAction) : milestone.reviewAction}
                         </button>
                       ) : null}
                       {(milestone.action === 'Approve' || milestone.reviewAction === 'Review Product') ? (
@@ -888,7 +1320,7 @@ function ClientDashboard() {
                           className="inline-flex items-center gap-2 rounded-xl bg-ink px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800"
                         >
                           <MessageSquareMore className="h-4 w-4" />
-                          Review Product
+                          {language === 'vi' ? 'Xem sản phẩm' : 'Review Product'}
                         </button>
                       ) : null}
                     </div>
@@ -898,14 +1330,71 @@ function ClientDashboard() {
             </div>
           </SectionCard>
         </div>
+        {signatureModal.open ? (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">
+            <div className="max-h-[92vh] w-full max-w-5xl overflow-hidden rounded-[28px] bg-white shadow-2xl">
+              <div className="flex items-start justify-between gap-4 border-b border-slate-200 px-6 py-5">
+                <div>
+                  <p className="text-sm font-medium text-slate-500">{language === 'vi' ? 'Ký hợp đồng online' : 'Online contract signature'}</p>
+                  <h3 className="mt-1 text-2xl font-bold text-ink">{signatureModal.contract?.onlineContract?.title || signatureModal.contract?.title?.[language]}</h3>
+                </div>
+                <button onClick={closeSignatureModal} className="rounded-full p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700">
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+              <div className="grid max-h-[calc(92vh-92px)] gap-0 overflow-y-auto lg:grid-cols-[minmax(0,1fr)_360px]">
+                <div className="border-b border-slate-200 p-6 lg:border-b-0 lg:border-r">
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
+                    <pre className="whitespace-pre-wrap font-sans text-sm leading-7 text-slate-700">{signatureModal.contract?.onlineContract?.content || ''}</pre>
+                  </div>
+                </div>
+                <div className="space-y-5 p-6">
+                  <div>
+                    <label className="text-sm font-semibold text-slate-700">{language === 'vi' ? 'Tên client / công ty' : 'Client / company name'}</label>
+                    <input
+                      value={contractSignature}
+                      onChange={(event) => setContractSignature(event.target.value)}
+                      className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-slate-400"
+                      placeholder={language === 'vi' ? 'Nhập tên để ký' : 'Enter name to sign'}
+                    />
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-slate-700">{language === 'vi' ? 'Upload ảnh chữ ký' : 'Upload signature image'}</p>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleSignatureUpload}
+                      className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm"
+                    />
+                    {contractSignatureImage ? (
+                      <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                        <p className="mb-2 text-xs font-semibold uppercase tracking-[0.12em] text-slate-400">{language === 'vi' ? 'Preview chữ ký' : 'Signature preview'}</p>
+                        <img src={contractSignatureImage} alt="Signature preview" className="max-h-36 w-full rounded-xl bg-white object-contain p-2" />
+                      </div>
+                    ) : null}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => signOnlineContract(signatureModal.contract)}
+                    disabled={signingContract}
+                    className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-ink px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    <FileCheck2 className="h-4 w-4" />
+                    {signingContract ? (language === 'vi' ? 'Đang ký...' : 'Signing...') : (language === 'vi' ? 'Xác nhận ký hợp đồng' : 'Confirm signature')}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : null}
         {reviewModal.open ? (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4">
             <div className="w-full max-w-6xl rounded-[28px] bg-white p-6 shadow-2xl">
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <p className="text-sm font-medium text-slate-500">Review milestone delivery</p>
-                  <h3 className="mt-1 text-2xl font-bold text-ink">{reviewModal.milestone?.title?.en}</h3>
-                  <p className="mt-2 text-sm text-slate-500">Review the freelancer submission before approving this stage.</p>
+                  <p className="text-sm font-medium text-slate-500">{language === 'vi' ? 'Xem sản phẩm đã nộp' : 'Review milestone delivery'}</p>
+                  <h3 className="mt-1 text-2xl font-bold text-ink">{reviewModal.milestone?.title?.[language] || reviewModal.milestone?.title?.vi || reviewModal.milestone?.title?.en}</h3>
+                  <p className="mt-2 text-sm text-slate-500">{language === 'vi' ? 'Xem bài nộp của freelancer trước khi phê duyệt giai đoạn này.' : 'Review the freelancer submission before approving this stage.'}</p>
                 </div>
                 <button onClick={closeReviewModal} className="rounded-full p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700">
                   <X className="h-5 w-5" />
@@ -915,7 +1404,7 @@ function ClientDashboard() {
                 <div className="mt-6 grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
                   <div className="overflow-hidden rounded-3xl border border-slate-200 bg-slate-50">
                     <div className="flex items-center justify-between border-b border-slate-200 bg-white px-4 py-3">
-                      <p className="text-sm font-semibold text-slate-700">Live preview</p>
+                      <p className="text-sm font-semibold text-slate-700">{language === 'vi' ? 'Xem trực tiếp' : 'Live preview'}</p>
                       <div className="flex items-center gap-2">
                         <button onClick={() => setReviewZoom((value) => Math.max(0.75, Number((value - 0.25).toFixed(2))))} className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-50">
                           -
@@ -988,19 +1477,19 @@ function ClientDashboard() {
                     ) : (
                       <div className="flex min-h-[620px] flex-col items-center justify-center gap-3 p-8 text-center text-slate-500">
                         <FileUp className="h-10 w-10 text-indigo-500" />
-                        <p className="font-semibold text-slate-700">{reviewModal.milestone.submission.fileName || 'Submitted file'}</p>
-                        <p className="text-sm">Preview is not available for this file type yet, but you can download the attachment below.</p>
+                        <p className="font-semibold text-slate-700">{reviewModal.milestone.submission.fileName || (language === 'vi' ? 'Tệp đã nộp' : 'Submitted file')}</p>
+                        <p className="text-sm">{language === 'vi' ? 'Loại tệp này hiện chưa hỗ trợ xem trực tiếp, nhưng bạn có thể tải xuống bên dưới.' : 'Preview is not available for this file type yet, but you can download the attachment below.'}</p>
                       </div>
                     )}
                   </div>
                   <div className="space-y-4 rounded-3xl border border-slate-200 p-5">
                     <div>
-                      <p className="text-sm font-semibold text-slate-700">Freelancer note</p>
-                      <p className="mt-2 text-sm leading-6 text-slate-500">{reviewModal.milestone.submission.note || 'No delivery note was provided.'}</p>
+                      <p className="text-sm font-semibold text-slate-700">{language === 'vi' ? 'Ghi chú của freelancer' : 'Freelancer note'}</p>
+                      <p className="mt-2 text-sm leading-6 text-slate-500">{reviewModal.milestone.submission.note || (language === 'vi' ? 'Chưa có ghi chú bàn giao nào.' : 'No delivery note was provided.')}</p>
                     </div>
                     <div>
-                      <p className="text-sm font-semibold text-slate-700">Attachment</p>
-                      <p className="mt-2 text-sm text-slate-500">{reviewModal.milestone.submission.fileName || 'No file attached'}</p>
+                      <p className="text-sm font-semibold text-slate-700">{language === 'vi' ? 'Tệp đính kèm' : 'Attachment'}</p>
+                      <p className="mt-2 text-sm text-slate-500">{reviewModal.milestone.submission.fileName || (language === 'vi' ? 'Chưa có tệp đính kèm' : 'No file attached')}</p>
                     </div>
                     <div className="flex flex-wrap gap-3">
                       <a
@@ -1009,7 +1498,7 @@ function ClientDashboard() {
                         className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-indigo-200 hover:text-indigo-600"
                       >
                         <Download className="h-4 w-4" />
-                        Download file
+                        {language === 'vi' ? 'Tải tệp' : 'Download file'}
                       </a>
                       {(reviewModal.milestone?.action === 'Approve' || reviewModal.milestone?.reviewAction === 'Review Product') ? (
                         <button
@@ -1020,7 +1509,7 @@ function ClientDashboard() {
                           className="inline-flex items-center gap-2 rounded-xl bg-ink px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800"
                         >
                           <MessageSquareMore className="h-4 w-4" />
-                          Approve milestone
+                          {language === 'vi' ? 'Phê duyệt milestone' : 'Approve milestone'}
                         </button>
                       ) : null}
                       <button
@@ -1029,19 +1518,45 @@ function ClientDashboard() {
                         className="inline-flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-4 py-2.5 text-sm font-semibold text-rose-700 transition hover:border-rose-300 hover:bg-rose-100"
                       >
                         <XCircle className="h-4 w-4" />
-                        Remove file
+                        {language === 'vi' ? 'Xóa tệp' : 'Remove file'}
                       </button>
                     </div>
                   </div>
                 </div>
               ) : (
                 <div className="mt-6 rounded-3xl border border-dashed border-slate-200 bg-slate-50 p-8 text-sm text-slate-500">
-                  No submitted file is attached to this milestone yet.
+                  {language === 'vi' ? 'Milestone này hiện chưa có tệp đã nộp.' : 'No submitted file is attached to this milestone yet.'}
                 </div>
               )}
             </div>
           </div>
         ) : null}
+        {contractReviewModal.open ? (
+          <ReviewPanel
+            isOpen={contractReviewModal.open}
+            onClose={() => setContractReviewModal({ open: false, contract: null, milestoneIndex: -1, recipientId: '', recipientName: '' })}
+            onSubmitted={() => {
+              setContractFeedback({
+                type: 'success',
+                message: language === 'vi' ? 'Đánh giá freelancer đã được lưu.' : 'Freelancer review saved successfully.',
+              });
+              setContractReviewModal({ open: false, contract: null, milestoneIndex: -1, recipientId: '', recipientName: '' });
+            }}
+            contractTitle={contractReviewModal.contract?.title?.[language] || contractReviewModal.contract?.title?.vi || contractReviewModal.contract?.title?.en || ''}
+            milestoneTitle={
+              contractReviewModal.contract?.milestones?.[contractReviewModal.milestoneIndex]?.title?.[language]
+              || contractReviewModal.contract?.milestones?.[contractReviewModal.milestoneIndex]?.title?.vi
+              || contractReviewModal.contract?.milestones?.[contractReviewModal.milestoneIndex]?.title?.en
+              || ''
+            }
+            recipientName={contractReviewModal.recipientName}
+            contractId={contractReviewModal.contract?.sourceJobId}
+            milestoneId={`milestone-${contractReviewModal.milestoneIndex}`}
+            recipientId={contractReviewModal.recipientId}
+            language={language}
+          />
+        ) : null}
+        </div>
       </div>,
     );
   }
@@ -1074,7 +1589,7 @@ function ClientDashboard() {
             <div className="relative">
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div>
-                  <p className="text-[11px] uppercase tracking-[0.24em] text-white/55">Client payment center</p>
+                  <p className="text-[11px] uppercase tracking-[0.24em] text-white/55">{language === 'vi' ? 'Trung tâm thanh toán khách hàng' : 'Client payment center'}</p>
                   <p className="mt-4 text-5xl font-bold tracking-[-0.04em] text-white">{formatMoney(availableBalance)}</p>
                   <div className="mt-4 inline-flex items-center gap-2 rounded-full border border-emerald-400/20 bg-emerald-400/10 px-3 py-1.5 text-xs font-semibold text-emerald-200">
                     <ArrowUpRight className="h-3.5 w-3.5" />
@@ -1095,7 +1610,7 @@ function ClientDashboard() {
                     value={walletAmount}
                     onChange={(event) => setWalletAmount(event.target.value)}
                     className="mt-3 w-full rounded-2xl border border-white/10 bg-white/10 px-4 py-3 text-sm text-white outline-none placeholder:text-white/40 focus:border-white/25"
-                    placeholder="Enter amount, for example 500"
+                        placeholder="Enter amount, for example 500000"
                   />
                 </div>
 
@@ -1133,7 +1648,7 @@ function ClientDashboard() {
               <div className="mt-5 grid gap-3 sm:grid-cols-2">
                 <div className="rounded-2xl border border-white/10 bg-white/6 p-4">
                   <p className="text-[11px] uppercase tracking-[0.16em] text-white/45">Upcoming releases</p>
-                  <p className="mt-2 text-2xl font-bold text-white">$3,240</p>
+                  <p className="mt-2 text-2xl font-bold text-white">3,240,000 VND</p>
                   <p className="mt-1 text-xs text-white/55">Across 4 active supplier contracts this week</p>
                 </div>
                 <div className="rounded-2xl border border-white/10 bg-white/6 p-4">
@@ -1248,28 +1763,28 @@ function ClientDashboard() {
               <div className="relative">
                 <div className="flex flex-wrap items-start justify-between gap-4">
                   <div>
-                    <p className="text-[11px] uppercase tracking-[0.24em] text-white/55">Client payment center</p>
+                    <p className="text-[11px] uppercase tracking-[0.24em] text-white/55">{language === 'vi' ? 'Trung tâm thanh toán khách hàng' : 'Client payment center'}</p>
                     <p className="mt-4 text-5xl font-bold tracking-[-0.04em] text-white">{formatMoney(availableBalance)}</p>
                     <div className="mt-4 inline-flex items-center gap-2 rounded-full border border-emerald-400/20 bg-emerald-400/10 px-3 py-1.5 text-xs font-semibold text-emerald-200">
                       <ArrowUpRight className="h-3.5 w-3.5" />
-                      +12.4% vs last month
+                      {language === 'vi' ? '+12,4% so với tháng trước' : '+12.4% vs last month'}
                     </div>
                   </div>
                   <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-right">
-                    <p className="text-[11px] uppercase tracking-[0.16em] text-white/45">Protected payments</p>
-                    <p className="mt-2 text-lg font-semibold text-white">Enterprise ready</p>
-                    <p className="mt-1 text-xs text-white/55">Fraud checks, verified vendors, release controls</p>
+                    <p className="text-[11px] uppercase tracking-[0.16em] text-white/45">{language === 'vi' ? 'Thanh toán an toàn' : 'Protected payments'}</p>
+                    <p className="mt-2 text-lg font-semibold text-white">{language === 'vi' ? 'Sẵn sàng vận hành' : 'Enterprise ready'}</p>
+                    <p className="mt-1 text-xs text-white/55">{language === 'vi' ? 'Kiểm tra gian lận, xác minh đối tác, kiểm soát giải ngân' : 'Fraud checks, verified vendors, release controls'}</p>
                   </div>
                 </div>
 
                 <div className="mt-6 grid gap-4 lg:grid-cols-[minmax(0,1fr)_220px]">
                   <div className="rounded-[22px] border border-white/10 bg-white/6 p-4">
-                    <p className="text-[11px] uppercase tracking-[0.18em] text-white/50">Action amount</p>
+                    <p className="text-[11px] uppercase tracking-[0.18em] text-white/50">{language === 'vi' ? 'Số tiền thao tác' : 'Action amount'}</p>
                     <input
                       value={walletAmount}
                       onChange={(event) => setWalletAmount(event.target.value)}
                       className="mt-3 w-full rounded-2xl border border-white/10 bg-white/10 px-4 py-3 text-sm text-white outline-none placeholder:text-white/40 focus:border-white/25"
-                      placeholder="Enter amount, for example 500"
+                      placeholder={language === 'vi' ? 'Nhập số tiền, ví dụ 500' : 'Enter amount, for example 500'}
                     />
                     <div className="mt-4 flex flex-wrap gap-3">
                       <button
@@ -1277,14 +1792,14 @@ function ClientDashboard() {
                         disabled={walletLoading}
                         className="rounded-2xl bg-[#00B386] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-60"
                       >
-                        Top Up
+                        {language === 'vi' ? 'Nạp tiền' : 'Top Up'}
                       </button>
                       <button
                         onClick={releasePayment}
                         disabled={walletLoading}
                         className="rounded-2xl border border-white/12 bg-white px-4 py-2.5 text-sm font-semibold text-[#0B1020] transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
                       >
-                        Release Payment
+                        {language === 'vi' ? 'Giải ngân' : 'Release Payment'}
                       </button>
                     </div>
                     {walletStatus.message ? (
@@ -1296,15 +1811,15 @@ function ClientDashboard() {
 
                   <div className="grid gap-3">
                     <div className="rounded-2xl border border-white/10 bg-white/6 p-4">
-                      <p className="text-[11px] uppercase tracking-[0.16em] text-white/45">Upcoming releases</p>
-                      <p className="mt-2 text-2xl font-bold text-white">$3,240</p>
-                      <p className="mt-1 text-xs text-white/55">Across 4 active contracts this week</p>
+                      <p className="text-[11px] uppercase tracking-[0.16em] text-white/45">{language === 'vi' ? 'Giải ngân sắp tới' : 'Upcoming releases'}</p>
+                  <p className="mt-2 text-2xl font-bold text-white">3,240,000 VND</p>
+                      <p className="mt-1 text-xs text-white/55">{language === 'vi' ? 'Trên 4 hợp đồng đang hoạt động trong tuần này' : 'Across 4 active contracts this week'}</p>
                     </div>
                     <div className="rounded-2xl border border-white/10 bg-white/6 p-4">
-                      <p className="text-[11px] uppercase tracking-[0.16em] text-white/45">Verification</p>
+                      <p className="text-[11px] uppercase tracking-[0.16em] text-white/45">{language === 'vi' ? 'Xác minh' : 'Verification'}</p>
                       <div className="mt-2 inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1.5 text-xs font-semibold text-white/85">
                         <ShieldCheck className="h-3.5 w-3.5 text-emerald-300" />
-                        Fraud protection active
+                        {language === 'vi' ? 'Bảo vệ gian lận đang bật' : 'Fraud protection active'}
                       </div>
                     </div>
                   </div>
@@ -1317,12 +1832,12 @@ function ClientDashboard() {
             <SectionCard className="border border-white/70 bg-white/70 p-6 shadow-[0_18px_60px_rgba(11,16,32,0.06)] backdrop-blur-xl">
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <p className="muted">Smart actions</p>
-                  <h2 className="mt-1 text-xl font-bold text-ink">Payment tools</h2>
+                  <p className="muted">{language === 'vi' ? 'Thao tác thông minh' : 'Smart actions'}</p>
+                  <h2 className="mt-1 text-xl font-bold text-ink">{language === 'vi' ? 'Công cụ thanh toán' : 'Payment tools'}</h2>
                 </div>
                 <div className="inline-flex rounded-full border border-slate-200 bg-slate-50 p-1 text-xs font-semibold text-slate-500">
-                  <span className="rounded-full bg-white px-3 py-1 text-slate-900 shadow-sm">Recommended</span>
-                  <span className="px-3 py-1">Shortcuts</span>
+                  <span className="rounded-full bg-white px-3 py-1 text-slate-900 shadow-sm">{language === 'vi' ? 'Đề xuất' : 'Recommended'}</span>
+                  <span className="px-3 py-1">{language === 'vi' ? 'Phím tắt' : 'Shortcuts'}</span>
                 </div>
               </div>
 
@@ -1340,21 +1855,21 @@ function ClientDashboard() {
 
               <div className="mt-6 grid gap-4 sm:grid-cols-3">
                 <div className="rounded-2xl border border-slate-200 bg-white p-4">
-                  <p className="text-[11px] uppercase tracking-[0.16em] text-slate-400">Monthly spend</p>
-                  <p className="mt-3 text-2xl font-bold text-ink">$18.4k</p>
+                  <p className="text-[11px] uppercase tracking-[0.16em] text-slate-400">{language === 'vi' ? 'Chi tiêu theo tháng' : 'Monthly spend'}</p>
+                <p className="mt-3 text-2xl font-bold text-ink">18,400,000 VND</p>
                   <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-100">
                     <div className="h-full w-[72%] rounded-full bg-gradient-to-r from-[#00B386] to-emerald-400" />
                   </div>
                 </div>
                 <div className="rounded-2xl border border-slate-200 bg-white p-4">
-                  <p className="text-[11px] uppercase tracking-[0.16em] text-slate-400">Active contracts</p>
-                  <p className="mt-3 text-2xl font-bold text-ink">$7.9k</p>
-                  <p className="mt-2 text-xs text-slate-500">Payments distributed across 8 suppliers</p>
+                  <p className="text-[11px] uppercase tracking-[0.16em] text-slate-400">{language === 'vi' ? 'Hợp đồng đang hoạt động' : 'Active contracts'}</p>
+                <p className="mt-3 text-2xl font-bold text-ink">7,900,000 VND</p>
+                  <p className="mt-2 text-xs text-slate-500">{language === 'vi' ? 'Thanh toán đang phân bổ trên 8 đối tác' : 'Payments distributed across 8 suppliers'}</p>
                 </div>
                 <div className="rounded-2xl border border-slate-200 bg-white p-4">
-                  <p className="text-[11px] uppercase tracking-[0.16em] text-slate-400">Trust status</p>
-                  <p className="mt-3 text-2xl font-bold text-ink">Verified</p>
-                  <p className="mt-2 text-xs text-slate-500">Protected payment rails and vendor checks enabled</p>
+                  <p className="text-[11px] uppercase tracking-[0.16em] text-slate-400">{language === 'vi' ? 'Trạng thái tin cậy' : 'Trust status'}</p>
+                  <p className="mt-3 text-2xl font-bold text-ink">{language === 'vi' ? 'Đã xác minh' : 'Verified'}</p>
+                  <p className="mt-2 text-xs text-slate-500">{language === 'vi' ? 'Đã bật lớp bảo vệ thanh toán và kiểm tra đối tác' : 'Protected payment rails and vendor checks enabled'}</p>
                 </div>
               </div>
             </SectionCard>
@@ -1362,11 +1877,11 @@ function ClientDashboard() {
             <SectionCard className="border border-white/70 bg-white/70 p-6 shadow-[0_18px_60px_rgba(11,16,32,0.06)] backdrop-blur-xl">
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <p className="muted">Analytics</p>
-                  <h2 className="mt-1 text-xl font-bold text-ink">Cash flow & vendor mix</h2>
+                  <p className="muted">{language === 'vi' ? 'Phân tích' : 'Analytics'}</p>
+                  <h2 className="mt-1 text-xl font-bold text-ink">{language === 'vi' ? 'Dòng tiền và cơ cấu đối tác' : 'Cash flow & vendor mix'}</h2>
                 </div>
                 <div className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs text-slate-500">
-                  Updated 5m ago
+                  {language === 'vi' ? 'Cập nhật 5 phút trước' : 'Updated 5m ago'}
                 </div>
               </div>
 
@@ -1374,8 +1889,8 @@ function ClientDashboard() {
                 <div className="rounded-[24px] border border-slate-200 bg-[#F8FAFD] p-5">
                   <div className="flex items-end justify-between gap-3">
                     <div>
-                      <p className="text-sm font-semibold text-ink">Monthly spending</p>
-                      <p className="mt-1 text-xs text-slate-500">Rolling 6-month payout curve</p>
+                      <p className="text-sm font-semibold text-ink">{language === 'vi' ? 'Chi tiêu theo tháng' : 'Monthly spending'}</p>
+                      <p className="mt-1 text-xs text-slate-500">{language === 'vi' ? 'Biểu đồ giải ngân 6 tháng gần nhất' : 'Rolling 6-month payout curve'}</p>
                     </div>
                     <div className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-700">
                       <ArrowUpRight className="h-3.5 w-3.5" />
@@ -1391,7 +1906,7 @@ function ClientDashboard() {
                             style={{ height: `${value}%` }}
                           />
                         </div>
-                        <span className="text-[11px] text-slate-400">{['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'][index]}</span>
+                        <span className="text-[11px] text-slate-400">{(language === 'vi' ? ['Th1', 'Th2', 'Th3', 'Th4', 'Th5', 'Th6'] : ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'])[index]}</span>
                       </div>
                     ))}
                   </div>
@@ -1399,13 +1914,13 @@ function ClientDashboard() {
 
                 <div className="space-y-4">
                   <div className="rounded-[24px] border border-slate-200 bg-white p-4">
-                    <p className="text-[11px] uppercase tracking-[0.16em] text-slate-400">Vendor distribution</p>
+                    <p className="text-[11px] uppercase tracking-[0.16em] text-slate-400">{language === 'vi' ? 'Phân bổ đối tác' : 'Vendor distribution'}</p>
                     <div className="mt-4 space-y-3">
                       {[
-                        ['Design', '38%', 'bg-emerald-500'],
-                        ['Engineering', '34%', 'bg-sky-500'],
-                        ['Security', '18%', 'bg-violet-500'],
-                        ['Other', '10%', 'bg-slate-300'],
+                        [language === 'vi' ? 'Thiết kế' : 'Design', '38%', 'bg-emerald-500'],
+                        [language === 'vi' ? 'Kỹ thuật' : 'Engineering', '34%', 'bg-sky-500'],
+                        [language === 'vi' ? 'Bảo mật' : 'Security', '18%', 'bg-violet-500'],
+                        [language === 'vi' ? 'Khác' : 'Other', '10%', 'bg-slate-300'],
                       ].map(([label, value, color]) => (
                         <div key={label}>
                           <div className="flex items-center justify-between text-sm">
@@ -1420,11 +1935,11 @@ function ClientDashboard() {
                     </div>
                   </div>
                   <div className="rounded-[24px] border border-slate-200 bg-white p-4">
-                    <p className="text-[11px] uppercase tracking-[0.16em] text-slate-400">Trust layer</p>
+                    <p className="text-[11px] uppercase tracking-[0.16em] text-slate-400">{language === 'vi' ? 'Lớp tin cậy' : 'Trust layer'}</p>
                     <div className="mt-4 space-y-3 text-sm text-slate-600">
-                      <div className="flex items-center gap-2"><ShieldCheck className="h-4 w-4 text-emerald-500" /> Protected payments</div>
-                      <div className="flex items-center gap-2"><ShieldCheck className="h-4 w-4 text-emerald-500" /> Vendor verification active</div>
-                      <div className="flex items-center gap-2"><ShieldCheck className="h-4 w-4 text-emerald-500" /> Approval controls enabled</div>
+                      <div className="flex items-center gap-2"><ShieldCheck className="h-4 w-4 text-emerald-500" /> {language === 'vi' ? 'Thanh toán được bảo vệ' : 'Protected payments'}</div>
+                      <div className="flex items-center gap-2"><ShieldCheck className="h-4 w-4 text-emerald-500" /> {language === 'vi' ? 'Xác minh đối tác đang bật' : 'Vendor verification active'}</div>
+                      <div className="flex items-center gap-2"><ShieldCheck className="h-4 w-4 text-emerald-500" /> {language === 'vi' ? 'Đã bật kiểm soát phê duyệt' : 'Approval controls enabled'}</div>
                     </div>
                   </div>
                 </div>
@@ -1436,19 +1951,19 @@ function ClientDashboard() {
         <SectionCard className="border border-white/70 bg-white/70 p-6 shadow-[0_18px_60px_rgba(11,16,32,0.06)] backdrop-blur-xl xl:flex xl:h-full xl:flex-col">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <p className="muted">Transactions</p>
-              <h2 className="mt-1 text-xl font-bold text-ink">Payment history</h2>
+              <p className="muted">{language === 'vi' ? 'Giao dịch' : 'Transactions'}</p>
+              <h2 className="mt-1 text-xl font-bold text-ink">{language === 'vi' ? 'Lịch sử thanh toán' : 'Payment history'}</h2>
             </div>
             <div className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs text-slate-500">
-              {recentTransactions.length} items
+              {recentTransactions.length} {language === 'vi' ? 'mục' : 'items'}
             </div>
           </div>
 
           <div className="mt-6 flex min-h-[420px] flex-col rounded-[30px] border border-slate-200 bg-gradient-to-b from-slate-50 to-white p-5 xl:min-h-0 xl:flex-1">
             <div className="inline-flex w-fit rounded-full border border-slate-200 bg-white p-1 text-xs font-semibold text-slate-500 shadow-sm">
-              <span className="rounded-full bg-[#0B1020] px-3 py-1 text-white">All</span>
-              <span className="px-3 py-1">Incoming</span>
-              <span className="px-3 py-1">Outgoing</span>
+              <span className="rounded-full bg-[#0B1020] px-3 py-1 text-white">{language === 'vi' ? 'Tất cả' : 'All'}</span>
+              <span className="px-3 py-1">{language === 'vi' ? 'Tiền vào' : 'Incoming'}</span>
+              <span className="px-3 py-1">{language === 'vi' ? 'Tiền ra' : 'Outgoing'}</span>
             </div>
 
             <div className="mt-5 flex-1 space-y-3 overflow-y-auto pr-1 xl:min-h-0">
@@ -1464,15 +1979,15 @@ function ClientDashboard() {
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2">
-                        <span className="text-sm font-semibold text-ink">{getTransactionLabel(transaction.type)}</span>
+                        <span className="text-sm font-semibold text-ink">{getTransactionLabel(transaction.type, language)}</span>
                         <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] ${tone.badge}`}>
-                          {isPositive ? 'Incoming' : 'Outgoing'}
+                          {isPositive ? (language === 'vi' ? 'Tiền vào' : 'Incoming') : (language === 'vi' ? 'Tiền ra' : 'Outgoing')}
                         </span>
                       </div>
                       <p className="mt-2 text-sm leading-6 text-slate-500">
-                        {transaction.description || 'Wallet transaction recorded.'}
+                        {transaction.description || (language === 'vi' ? 'Đã ghi nhận giao dịch ví.' : 'Wallet transaction recorded.')}
                       </p>
-                      <p className="mt-2 text-xs text-slate-400">{formatTransactionTime(transaction.createdAt)}</p>
+                      <p className="mt-2 text-xs text-slate-400">{formatTransactionTime(transaction.createdAt, language)}</p>
                     </div>
                     <span className={`shrink-0 text-sm font-semibold ${tone.amount}`}>
                       {tone.sign}{formatMoney(transaction.amount || 0)}
@@ -1486,9 +2001,9 @@ function ClientDashboard() {
                   <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 text-slate-400">
                     <CircleDollarSign className="h-6 w-6" />
                   </div>
-                  <p className="mt-4 text-sm font-semibold text-ink">No payment activity yet</p>
+                  <p className="mt-4 text-sm font-semibold text-ink">{language === 'vi' ? 'Chưa có hoạt động thanh toán' : 'No payment activity yet'}</p>
                   <p className="mt-2 max-w-xs text-sm leading-6 text-slate-500">
-                    Your top-ups, milestone releases, and vendor payouts will appear here as soon as activity starts.
+                    {language === 'vi' ? 'Các lần nạp tiền, giải ngân milestone và thanh toán cho đối tác sẽ hiển thị tại đây khi bắt đầu phát sinh giao dịch.' : 'Your top-ups, milestone releases, and vendor payouts will appear here as soon as activity starts.'}
                   </p>
                 </div>
               ) : null}
@@ -1512,33 +2027,29 @@ function ClientDashboard() {
 
   if (activePage === 'bank') {
     return dashboardLayout(
-      <SettingsPanel user={user} onUserChange={setUser} initialSection="bank" mode="bank" />,
+      <AppErrorBoundary>
+        <SettingsPanel user={user} onUserChange={setUser} initialSection="bank" mode="bank" />
+      </AppErrorBoundary>,
     );
+  }
+
+  if (activePage === 'profile') {
+    return <Navigate to={`/client-profile/${user?.id || user?._id || 'me'}`} replace />;
   }
 
   if (activePage === 'disputes') {
     return dashboardLayout(
       <SectionCard className="p-6">
-        <p className="muted">Disputes</p>
-        <h2 className="mt-1 text-xl font-bold text-ink">Client dispute overview</h2>
-        <div className="mt-6 space-y-4">
-          {disputes.map((item) => (
-            <div key={item.id} className="rounded-2xl border border-slate-200 p-4">
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                <p className="font-semibold text-ink">{item.title.en}</p>
-                <span className={`rounded-full px-3 py-1 text-xs font-semibold ${item.status === 'Resolved' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>{item.status}</span>
-              </div>
-              <p className="mt-2 text-sm text-slate-500">{item.contract.en} · {item.amount}</p>
-            </div>
-          ))}
-        </div>
+        <DisputeCenter role="client" contracts={contractList} />
       </SectionCard>,
     );
   }
 
   if (activePage === 'settings') {
     return dashboardLayout(
-      <SettingsPanel user={user} onUserChange={setUser} initialSection={settingsSection} />,
+      <AppErrorBoundary>
+        <SettingsPanel user={user} onUserChange={setUser} initialSection={settingsSection} />
+      </AppErrorBoundary>,
     );
   }
 
@@ -1547,34 +2058,34 @@ function ClientDashboard() {
       <SectionCard className="overflow-hidden p-0">
         <div className="grid gap-0 lg:grid-cols-[1.2fr_0.8fr]">
           <div className="bg-ink px-6 py-8 text-white sm:px-8">
-            <p className="text-sm uppercase tracking-[0.2em] text-white/60">Client Command Center</p>
-            <h2 className="mt-3 text-3xl font-bold tracking-tight">Manage hiring, approvals, and payments</h2>
-            <p className="mt-4 max-w-2xl text-sm leading-7 text-white/75">Review incoming work, approve milestones, manage available balance, and keep every contract under control from one client workspace.</p>
+            <p className="text-sm uppercase tracking-[0.2em] text-white/60">{language === 'vi' ? 'Trung tâm điều hành khách hàng' : 'Client Command Center'}</p>
+            <h2 className="mt-3 text-3xl font-bold tracking-tight">{language === 'vi' ? 'Quản lý tuyển dụng, phê duyệt và thanh toán' : 'Manage hiring, approvals, and payments'}</h2>
+            <p className="mt-4 max-w-2xl text-sm leading-7 text-white/75">{language === 'vi' ? 'Xem lại công việc được gửi đến, phê duyệt milestone, quản lý số dư khả dụng và giữ mọi hợp đồng trong tầm kiểm soát từ một không gian khách hàng.' : 'Review incoming work, approve milestones, manage available balance, and keep every contract under control from one client workspace.'}</p>
             <div className="mt-6 flex flex-wrap gap-3">
-               <button onClick={() => navigate('/client-jobs/new')} className="rounded-2xl bg-white px-5 py-3 text-sm font-semibold text-ink">Add Job</button>
-               <button onClick={() => setActivePage('marketplace')} className="rounded-2xl border border-white/15 px-5 py-3 text-sm font-semibold text-white">Review Proposals</button>
-              <button onClick={() => setActivePage('escrow')} className="rounded-2xl border border-white/15 px-5 py-3 text-sm font-semibold text-white">Open Payments</button>
+               <button onClick={() => navigate('/client-jobs/new')} className="rounded-2xl bg-white px-5 py-3 text-sm font-semibold text-ink">{language === 'vi' ? 'Thêm công việc' : 'Add Job'}</button>
+               <button onClick={() => setActivePage('marketplace')} className="rounded-2xl border border-white/15 px-5 py-3 text-sm font-semibold text-white">{language === 'vi' ? 'Xem chào giá' : 'Review Proposals'}</button>
+              <button onClick={() => setActivePage('escrow')} className="rounded-2xl border border-white/15 px-5 py-3 text-sm font-semibold text-white">{language === 'vi' ? 'Mở thanh toán' : 'Open Payments'}</button>
             </div>
           </div>
           <div className="bg-slate-50 px-6 py-8 sm:px-8">
             <div className="space-y-4">
-              <div className="rounded-3xl border border-slate-200 bg-white p-5"><p className="text-sm text-slate-500">Pending approvals</p><p className="mt-2 text-3xl font-bold text-ink">3</p><p className="mt-2 text-sm text-slate-500">Milestones waiting for your review this week.</p></div>
-                <div className="rounded-3xl border border-slate-200 bg-white p-5"><p className="text-sm text-slate-500">Available balance</p><p className="mt-2 text-3xl font-bold text-ink">{formatMoney(availableBalance)}</p><p className="mt-2 text-sm text-slate-500">Use this shared balance for top-ups and milestone releases.</p><button onClick={() => setActivePage('escrow')} className="mt-4 rounded-xl bg-ink px-4 py-2 text-sm font-semibold text-white">Open payments</button></div>
+              <div className="rounded-3xl border border-slate-200 bg-white p-5"><p className="text-sm text-slate-500">{language === 'vi' ? 'Phê duyệt đang chờ' : 'Pending approvals'}</p><p className="mt-2 text-3xl font-bold text-ink">3</p><p className="mt-2 text-sm text-slate-500">{language === 'vi' ? 'Các milestone đang chờ bạn xem xét trong tuần này.' : 'Milestones waiting for your review this week.'}</p></div>
+                <div className="rounded-3xl border border-slate-200 bg-white p-5"><p className="text-sm text-slate-500">{language === 'vi' ? 'Số dư khả dụng' : 'Available balance'}</p><p className="mt-2 text-3xl font-bold text-ink">{formatMoney(availableBalance)}</p><p className="mt-2 text-sm text-slate-500">{language === 'vi' ? 'Dùng số dư chung này cho các lần nạp tiền và giải ngân milestone.' : 'Use this shared balance for top-ups and milestone releases.'}</p><button onClick={() => setActivePage('escrow')} className="mt-4 rounded-xl bg-ink px-4 py-2 text-sm font-semibold text-white">{language === 'vi' ? 'Mở thanh toán' : 'Open payments'}</button></div>
             </div>
           </div>
         </div>
       </SectionCard>
       <section className="grid gap-5 md:grid-cols-3">
         {[
-          { label: 'Open jobs', value: '12', hint: '4 new proposals today', icon: BriefcaseBusiness, accent: 'bg-pine/10 text-pine' },
-          { label: 'Pending approvals', value: '3', hint: 'Milestones waiting for review', icon: ClipboardCheck, accent: 'bg-coral/10 text-coral' },
-          { label: 'Available balance', value: formatMoney(availableBalance), hint: 'Shared balance used for platform payments', icon: CircleDollarSign, accent: 'bg-gold/10 text-gold' },
+          { label: language === 'vi' ? 'Công việc đang mở' : 'Open jobs', value: '12', hint: language === 'vi' ? '4 đề xuất mới hôm nay' : '4 new proposals today', icon: BriefcaseBusiness, accent: 'bg-pine/10 text-pine' },
+          { label: language === 'vi' ? 'Phê duyệt đang chờ' : 'Pending approvals', value: '3', hint: language === 'vi' ? 'Các milestone đang chờ xem xét' : 'Milestones waiting for review', icon: ClipboardCheck, accent: 'bg-coral/10 text-coral' },
+          { label: language === 'vi' ? 'Số dư khả dụng' : 'Available balance', value: formatMoney(availableBalance), hint: language === 'vi' ? 'Số dư dùng chung cho các thanh toán trên nền tảng' : 'Shared balance used for platform payments', icon: CircleDollarSign, accent: 'bg-gold/10 text-gold' },
         ].map((stat) => <StatCard key={stat.label} {...stat} />)}
       </section>
       <SectionCard className="p-6">
-        <div><p className="muted">Client activity</p><h2 className="mt-1 text-xl font-bold text-ink">Hiring and approval overview</h2></div>
+        <div><p className="muted">{language === 'vi' ? 'Hoạt động khách hàng' : 'Client activity'}</p><h2 className="mt-1 text-xl font-bold text-ink">{language === 'vi' ? 'Tổng quan tuyển dụng và phê duyệt' : 'Hiring and approval overview'}</h2></div>
         <div className="mt-6 space-y-4">
-          {clientActivities.map((activity) => <div key={activity.title} className="flex items-start gap-4 rounded-2xl border border-slate-200 bg-slate-50 p-4"><div className="mt-1 rounded-2xl bg-white p-3 shadow-sm"><activity.icon className="h-5 w-5 text-pine" /></div><div className="flex-1"><div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between"><h3 className="font-semibold text-slate-900">{activity.title}</h3><span className="text-sm text-slate-400">{activity.time}</span></div><p className="mt-1 text-sm leading-6 text-slate-600">{activity.description}</p></div></div>)}
+          {clientActivities.map((activity) => <div key={activity.title.en} className="flex items-start gap-4 rounded-2xl border border-slate-200 bg-slate-50 p-4"><div className="mt-1 rounded-2xl bg-white p-3 shadow-sm"><activity.icon className="h-5 w-5 text-pine" /></div><div className="flex-1"><div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between"><h3 className="font-semibold text-slate-900">{activity.title[language] || activity.title.en}</h3><span className="text-sm text-slate-400">{activity.time[language] || activity.time.en}</span></div><p className="mt-1 text-sm leading-6 text-slate-600">{activity.description[language] || activity.description.en}</p></div></div>)}
         </div>
       </SectionCard>
     </div>,
@@ -1582,3 +2093,7 @@ function ClientDashboard() {
 }
 
 export default ClientDashboard;
+
+
+
+

@@ -5,6 +5,8 @@ import SectionCard from '../components/SectionCard';
 import Sidebar from '../components/Sidebar';
 import Topbar from '../components/Topbar';
 import { sidebarItems } from '../data/appData';
+import { persistLanguage } from '../utils/language';
+import { formatMoney, parseMoneyAmount } from '../utils/money';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
 const TOKEN_KEY = 'fptp_token';
@@ -47,17 +49,11 @@ const labels = {
 };
 
 function sanitizeMoneyInput(value) {
-  const cleaned = `${value || ''}`.replace(/[^0-9.]/g, '');
-  const [integerPart, ...decimalParts] = cleaned.split('.');
-  const decimalPart = decimalParts.join('').slice(0, 2);
-
-  return decimalParts.length > 0 ? `${integerPart}.${decimalPart}` : integerPart;
+  return `${value || ''}`.replace(/[^0-9]/g, '');
 }
 
 function moneyToNumber(value) {
-  const normalized = `${value || ''}`.replace(/[^0-9.]/g, '');
-  const parsed = Number.parseFloat(normalized);
-  return Number.isFinite(parsed) ? parsed : 0;
+  return parseMoneyAmount(value);
 }
 
 function formatMoneyPreview(value, fallback = 'Set amount') {
@@ -67,11 +63,7 @@ function formatMoneyPreview(value, fallback = 'Set amount') {
     return fallback;
   }
 
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    maximumFractionDigits: 0,
-  }).format(amount);
+  return formatMoney(amount);
 }
 
 function AddJob() {
@@ -83,14 +75,29 @@ function AddJob() {
   const [jobLoading, setJobLoading] = useState(isEditMode);
   const [jobStatus, setJobStatus] = useState({ type: '', message: '' });
   const [jobForm, setJobForm] = useState(defaultJobForm);
+  const language = user?.settings?.language || 'en';
+  const localizedLabels = {
+    Dashboard: language === 'vi' ? 'Tổng quan' : labels.Dashboard,
+    Jobs: language === 'vi' ? 'Công việc' : labels.Jobs,
+    Contracts: language === 'vi' ? 'Hợp đồng' : labels.Contracts,
+    Chat: language === 'vi' ? 'Trò chuyện' : labels.Chat,
+    'Bank Account': language === 'vi' ? 'Tài khoản ngân hàng' : labels['Bank Account'],
+    Payments: language === 'vi' ? 'Thanh toán' : labels.Payments,
+    Disputes: language === 'vi' ? 'Tranh chấp' : labels.Disputes,
+    workspace: language === 'vi' ? 'Không gian làm việc' : labels.workspace,
+    trustCenter: language === 'vi' ? 'Bảng điều khiển khách hàng' : labels.trustCenter,
+    workspaceDesc: language === 'vi' ? 'Quản lý tuyển dụng, phê duyệt, thanh toán và tranh chấp trong một trung tâm điều hành.' : labels.workspaceDesc,
+    balanceProtected: language === 'vi' ? 'Số dư khả dụng' : labels.balanceProtected,
+    balanceDesc: language === 'vi' ? 'Dùng chung cho các hợp đồng đang hoạt động của bạn.' : labels.balanceDesc,
+  };
 
   const quickTips = useMemo(
     () => [
-      'Be specific about deliverables and approval criteria.',
-      'List the tools or stack you expect the freelancer to use.',
-      'Include timeline and communication expectations up front.',
+      language === 'vi' ? 'Hãy nêu rõ sản phẩm bàn giao và tiêu chí phê duyệt.' : 'Be specific about deliverables and approval criteria.',
+      language === 'vi' ? 'Liệt kê công cụ hoặc stack bạn muốn freelancer sử dụng.' : 'List the tools or stack you expect the freelancer to use.',
+      language === 'vi' ? 'Nêu rõ mốc thời gian và kỳ vọng giao tiếp ngay từ đầu.' : 'Include timeline and communication expectations up front.',
     ],
-    [],
+    [language],
   );
   const previewChips = useMemo(
     () => [
@@ -179,6 +186,7 @@ function AddJob() {
   }, [isEditMode, jobId, navigate]);
 
   const handleLanguageChange = (language) => {
+    persistLanguage(language);
     const nextUser = {
       ...user,
       settings: {
@@ -324,17 +332,17 @@ function AddJob() {
   return (
     <div className="min-h-screen bg-slate-100/80">
       <div className="mx-auto flex w-full max-w-[1680px] gap-6 px-4 py-4 sm:px-6 xl:px-8">
-        <Sidebar items={sidebarItems} activePage="marketplace" onNavigate={routeToClientDashboard} labels={labels} />
+        <Sidebar items={sidebarItems} activePage="marketplace" onNavigate={routeToClientDashboard} labels={localizedLabels} />
         <div className="min-w-0 flex-1 space-y-6">
-          <Topbar
-            title={isEditMode ? 'Edit Job' : 'Add Job'}
-            subtitle={isEditMode ? 'Update your hiring brief after negotiation' : 'Create a dedicated hiring brief for your client workspace'}
+            <Topbar
+              title={user?.settings?.language === 'vi' ? (isEditMode ? 'Chỉnh sửa công việc' : 'Thêm công việc') : (isEditMode ? 'Edit Job' : 'Add Job')}
+              subtitle={user?.settings?.language === 'vi' ? (isEditMode ? 'Cập nhật bản mô tả tuyển dụng sau quá trình trao đổi' : 'Tạo bản mô tả tuyển dụng riêng cho không gian khách hàng của bạn') : (isEditMode ? 'Update your hiring brief after negotiation' : 'Create a dedicated hiring brief for your client workspace')}
             onLogout={logout}
             onOpenSettings={() => routeToClientDashboard('settings')}
             onOpenBankSettings={() => routeToClientDashboard('bank')}
             language={user?.settings?.language || 'en'}
             onLanguageChange={handleLanguageChange}
-            copy={{ role: 'client', logout: 'Logout' }}
+              copy={{ role: user?.settings?.language === 'vi' ? 'khách hàng' : 'client', logout: user?.settings?.language === 'vi' ? 'Đăng xuất' : 'Logout' }}
             user={user}
           />
 
@@ -345,7 +353,7 @@ function AddJob() {
               className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
             >
               <ArrowLeft className="h-4 w-4" />
-              Back to Jobs
+              {language === 'vi' ? 'Quay lại công việc' : 'Back to Jobs'}
             </button>
           </div>
 
@@ -355,27 +363,27 @@ function AddJob() {
                 <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.12),transparent_28%),radial-gradient(circle_at_bottom_left,rgba(20,184,166,0.18),transparent_34%)]" />
                 <div className="relative">
                   <span className="rounded-full bg-white/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-white/70">
-                    {isEditMode ? 'Client brief editor' : 'Client hiring brief'}
+                    {language === 'vi' ? (isEditMode ? 'Chỉnh sửa mô tả tuyển dụng' : 'Mô tả tuyển dụng khách hàng') : (isEditMode ? 'Client brief editor' : 'Client hiring brief')}
                   </span>
                   <h1 className="mt-5 max-w-2xl text-4xl font-bold tracking-tight">
-                    {isEditMode ? 'Edit your job post after the deal discussion' : 'Create a richer job post for freelancers'}
+                    {language === 'vi' ? (isEditMode ? 'Chỉnh sửa bài đăng việc làm sau khi trao đổi' : 'Tạo bài đăng công việc đầy đủ hơn cho freelancer') : (isEditMode ? 'Edit your job post after the deal discussion' : 'Create a richer job post for freelancers')}
                   </h1>
                   <p className="mt-4 max-w-2xl text-sm leading-7 text-white/75">
-                    Turn a vague request into a serious brief with budget, scope, skills, and delivery expectations that good freelancers can trust.
+                    {language === 'vi' ? 'Biến một yêu cầu sơ sài thành bản mô tả chuyên nghiệp với ngân sách, phạm vi, kỹ năng và kỳ vọng bàn giao mà freelancer giỏi có thể tin tưởng.' : 'Turn a vague request into a serious brief with budget, scope, skills, and delivery expectations that good freelancers can trust.'}
                   </p>
 
                   <div className="mt-8 grid gap-4 sm:grid-cols-3">
                     <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                      <p className="text-xs uppercase tracking-[0.18em] text-white/55">Clarity</p>
-                      <p className="mt-2 text-lg font-semibold">Scope that is easy to price</p>
+                      <p className="text-xs uppercase tracking-[0.18em] text-white/55">{language === 'vi' ? 'Rõ ràng' : 'Clarity'}</p>
+                      <p className="mt-2 text-lg font-semibold">{language === 'vi' ? 'Phạm vi dễ báo giá' : 'Scope that is easy to price'}</p>
                     </div>
                     <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                      <p className="text-xs uppercase tracking-[0.18em] text-white/55">Trust</p>
-                      <p className="mt-2 text-lg font-semibold">Expectations that reduce rework</p>
+                      <p className="text-xs uppercase tracking-[0.18em] text-white/55">{language === 'vi' ? 'Tin cậy' : 'Trust'}</p>
+                      <p className="mt-2 text-lg font-semibold">{language === 'vi' ? 'Kỳ vọng rõ để giảm làm lại' : 'Expectations that reduce rework'}</p>
                     </div>
                     <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                      <p className="text-xs uppercase tracking-[0.18em] text-white/55">Quality</p>
-                      <p className="mt-2 text-lg font-semibold">Better proposals from better people</p>
+                      <p className="text-xs uppercase tracking-[0.18em] text-white/55">{language === 'vi' ? 'Chất lượng' : 'Quality'}</p>
+                      <p className="mt-2 text-lg font-semibold">{language === 'vi' ? 'Đề xuất tốt hơn từ người phù hợp hơn' : 'Better proposals from better people'}</p>
                     </div>
                   </div>
                 </div>
@@ -387,8 +395,8 @@ function AddJob() {
                     <Sparkles className="h-5 w-5" />
                   </div>
                   <div>
-                    <p className="muted">Quick guide</p>
-                    <h2 className="text-2xl font-bold text-ink">What strong briefs include</h2>
+                    <p className="muted">{language === 'vi' ? 'Hướng dẫn nhanh' : 'Quick guide'}</p>
+                    <h2 className="text-2xl font-bold text-ink">{language === 'vi' ? 'Một bản mô tả tốt nên có gì' : 'What strong briefs include'}</h2>
                   </div>
                 </div>
 
@@ -410,28 +418,28 @@ function AddJob() {
                   <Plus className="h-5 w-5" />
                 </div>
                 <div>
-                  <p className="muted">New post</p>
-                  <h2 className="text-2xl font-bold text-ink">Job details</h2>
+                  <p className="muted">{language === 'vi' ? 'Bài đăng mới' : 'New post'}</p>
+                  <h2 className="text-2xl font-bold text-ink">{language === 'vi' ? 'Chi tiết công việc' : 'Job details'}</h2>
                 </div>
               </div>
 
               {jobLoading ? (
                 <div className="mt-8 rounded-3xl border border-slate-200 bg-slate-50 p-6 text-sm font-semibold text-slate-500">
-                  Loading job post from database...
+                  {language === 'vi' ? 'Đang tải bài đăng từ cơ sở dữ liệu...' : 'Loading job post from database...'}
                 </div>
               ) : (
               <form onSubmit={handleCreateJob} className="mt-8 space-y-8">
                 <div className="space-y-4">
                   <div>
-                    <p className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">Core details</p>
+                    <p className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">{language === 'vi' ? 'Thông tin cốt lõi' : 'Core details'}</p>
                   </div>
                   <div className="grid gap-4 md:grid-cols-2">
                     <label className="space-y-2">
-                      <span className="text-sm font-medium text-slate-700">Job title</span>
-                      <input value={jobForm.title} onChange={(event) => updateJobField('title', event.target.value)} className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 outline-none transition focus:border-slate-400" placeholder="Senior React engineer for escrow dashboard" />
+                      <span className="text-sm font-medium text-slate-700">{language === 'vi' ? 'Tiêu đề công việc' : 'Job title'}</span>
+                      <input value={jobForm.title} onChange={(event) => updateJobField('title', event.target.value)} className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 outline-none transition focus:border-slate-400" placeholder={language === 'vi' ? 'Kỹ sư React senior cho dashboard thanh toán' : 'Senior React engineer for escrow dashboard'} />
                     </label>
                     <label className="space-y-2">
-                      <span className="text-sm font-medium text-slate-700">Category</span>
+                      <span className="text-sm font-medium text-slate-700">{language === 'vi' ? 'Danh mục' : 'Category'}</span>
                       <select value={jobForm.category} onChange={(event) => updateJobField('category', event.target.value)} className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 outline-none transition focus:border-slate-400">
                         {jobCategories.map((category) => (
                           <option key={category} value={category}>{category}</option>
@@ -443,21 +451,21 @@ function AddJob() {
 
                 <div className="space-y-4">
                   <div>
-                    <p className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">Budget and fit</p>
+                    <p className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">{language === 'vi' ? 'Ngân sách và độ phù hợp' : 'Budget and fit'}</p>
                   </div>
                   <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
                     <label className="space-y-2">
-                      <span className="text-sm font-medium text-slate-700">Budget</span>
+                      <span className="text-sm font-medium text-slate-700">{language === 'vi' ? 'Ngân sách' : 'Budget'}</span>
                       <input
                         value={jobForm.budget}
                         onChange={(event) => updateJobField('budget', sanitizeMoneyInput(event.target.value))}
-                        inputMode="decimal"
+                        inputMode="numeric"
                         className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 outline-none transition focus:border-slate-400"
-                        placeholder="6000"
+                        placeholder="6000000"
                       />
                     </label>
                     <label className="space-y-2">
-                      <span className="text-sm font-medium text-slate-700">Experience level</span>
+                      <span className="text-sm font-medium text-slate-700">{language === 'vi' ? 'Mức kinh nghiệm' : 'Experience level'}</span>
                       <select value={jobForm.experienceLevel} onChange={(event) => updateJobField('experienceLevel', event.target.value)} className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 outline-none transition focus:border-slate-400">
                         {experienceLevels.map((level) => (
                           <option key={level} value={level}>{level}</option>
@@ -465,7 +473,7 @@ function AddJob() {
                       </select>
                     </label>
                     <label className="space-y-2">
-                      <span className="text-sm font-medium text-slate-700">Engagement</span>
+                      <span className="text-sm font-medium text-slate-700">{language === 'vi' ? 'Hình thức hợp tác' : 'Engagement'}</span>
                       <select value={jobForm.engagementType} onChange={(event) => updateJobField('engagementType', event.target.value)} className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 outline-none transition focus:border-slate-400">
                         {engagementTypes.map((type) => (
                           <option key={type} value={type}>{type}</option>
@@ -473,7 +481,7 @@ function AddJob() {
                       </select>
                     </label>
                     <label className="space-y-2">
-                      <span className="text-sm font-medium text-slate-700">Location</span>
+                      <span className="text-sm font-medium text-slate-700">{language === 'vi' ? 'Địa điểm' : 'Location'}</span>
                       <select value={jobForm.locationType} onChange={(event) => updateJobField('locationType', event.target.value)} className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 outline-none transition focus:border-slate-400">
                         {locationTypes.map((type) => (
                           <option key={type} value={type}>{type}</option>
@@ -485,27 +493,27 @@ function AddJob() {
 
                 <div className="space-y-4">
                   <div>
-                    <p className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">Scope and delivery</p>
+                    <p className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">{language === 'vi' ? 'Phạm vi và bàn giao' : 'Scope and delivery'}</p>
                   </div>
                   <div className="grid gap-4 md:grid-cols-2">
                     <label className="space-y-2">
-                      <span className="text-sm font-medium text-slate-700">Timeline</span>
-                      <input value={jobForm.timeline} onChange={(event) => updateJobField('timeline', event.target.value)} className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 outline-none transition focus:border-slate-400" placeholder="2 to 4 weeks" />
+                      <span className="text-sm font-medium text-slate-700">{language === 'vi' ? 'Thời gian thực hiện' : 'Timeline'}</span>
+                      <input value={jobForm.timeline} onChange={(event) => updateJobField('timeline', event.target.value)} className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 outline-none transition focus:border-slate-400" placeholder={language === 'vi' ? '2 đến 4 tuần' : '2 to 4 weeks'} />
                     </label>
                     <label className="space-y-2">
-                      <span className="text-sm font-medium text-slate-700">Required skills</span>
-                      <input value={jobForm.skills} onChange={(event) => updateJobField('skills', event.target.value)} className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 outline-none transition focus:border-slate-400" placeholder="React, Tailwind, Dashboard UX" />
+                      <span className="text-sm font-medium text-slate-700">{language === 'vi' ? 'Kỹ năng yêu cầu' : 'Required skills'}</span>
+                      <input value={jobForm.skills} onChange={(event) => updateJobField('skills', event.target.value)} className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 outline-none transition focus:border-slate-400" placeholder={language === 'vi' ? 'React, Tailwind, UX dashboard' : 'React, Tailwind, Dashboard UX'} />
                     </label>
                   </div>
 
                   <label className="space-y-2">
-                    <span className="text-sm font-medium text-slate-700">Scope summary</span>
-                    <input value={jobForm.scopeSummary} onChange={(event) => updateJobField('scopeSummary', event.target.value)} className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 outline-none transition focus:border-slate-400" placeholder="Build a secure client portal with milestone review and payout controls." />
+                    <span className="text-sm font-medium text-slate-700">{language === 'vi' ? 'Tóm tắt phạm vi' : 'Scope summary'}</span>
+                    <input value={jobForm.scopeSummary} onChange={(event) => updateJobField('scopeSummary', event.target.value)} className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 outline-none transition focus:border-slate-400" placeholder={language === 'vi' ? 'Xây cổng khách hàng an toàn với duyệt milestone và kiểm soát thanh toán.' : 'Build a secure client portal with milestone review and payout controls.'} />
                   </label>
 
                   <label className="space-y-2">
-                    <span className="text-sm font-medium text-slate-700">Description</span>
-                    <textarea value={jobForm.description} onChange={(event) => updateJobField('description', event.target.value)} rows={7} className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 outline-none transition focus:border-slate-400" placeholder="Describe the role, scope, deliverables, and the kind of freelancer you want to hire." />
+                    <span className="text-sm font-medium text-slate-700">{language === 'vi' ? 'Mô tả chi tiết' : 'Description'}</span>
+                    <textarea value={jobForm.description} onChange={(event) => updateJobField('description', event.target.value)} rows={7} className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 outline-none transition focus:border-slate-400" placeholder={language === 'vi' ? 'Mô tả vai trò, phạm vi, sản phẩm bàn giao và kiểu freelancer bạn muốn tuyển.' : 'Describe the role, scope, deliverables, and the kind of freelancer you want to hire.'} />
                   </label>
                 </div>
 
@@ -554,9 +562,9 @@ function AddJob() {
                             <input
                               value={milestone.amount}
                               onChange={(event) => updateMilestoneField(index, 'amount', event.target.value)}
-                              inputMode="decimal"
+                              inputMode="numeric"
                               className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 outline-none transition focus:border-slate-400"
-                              placeholder="1200"
+                              placeholder="1200000"
                             />
                           </label>
                         </div>
@@ -589,13 +597,13 @@ function AddJob() {
                       : 'border-amber-200 bg-amber-50 text-amber-700'
                   }`}>
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                      <span className="font-semibold">Milestone total: {formatMoneyPreview(`${milestoneTotal}`, '$0')}</span>
-                      <span className="font-semibold">Budget: {formatMoneyPreview(jobForm.budget, '$0')}</span>
+                      <span className="font-semibold">Milestone total: {formatMoneyPreview(`${milestoneTotal}`, '0 VND')}</span>
+                      <span className="font-semibold">Budget: {formatMoneyPreview(jobForm.budget, '0 VND')}</span>
                     </div>
                     <p className="mt-2">
                       {milestoneTotalMatchesBudget
                         ? 'Milestone total matches the job budget.'
-                        : `Milestone total must equal budget before posting. Difference: ${formatMoneyPreview(`${Math.abs(budgetDifference)}`, '$0')}`}
+                        : `Milestone total must equal budget before posting. Difference: ${formatMoneyPreview(`${Math.abs(budgetDifference)}`, '0 VND')}`}
                     </p>
                   </div>
                 </div>

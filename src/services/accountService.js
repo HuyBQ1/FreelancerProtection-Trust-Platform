@@ -54,6 +54,20 @@ export async function findAccountByIdAndRole(id, role) {
   return { account: null, model: null };
 }
 
+export async function findAnyAccountById(id) {
+  for (const model of [Client, Freelancer, User]) {
+    const account = model === User
+      ? await model.findById(id).select('-password')
+      : await model.findById(id).select('-password');
+
+    if (account) {
+      return account;
+    }
+  }
+
+  return null;
+}
+
 export async function ensureEmailIsAvailable(email, excludeAccount) {
   const existingAccount = await findAccountByEmail(email);
 
