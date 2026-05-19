@@ -4,7 +4,7 @@ const transactionSchema = new mongoose.Schema(
   {
     type: {
       type: String,
-      enum: ['deposit', 'release', 'withdrawal', 'refund'],
+      enum: ['deposit', 'release', 'withdrawal', 'refund', 'platform_fee'],
       required: true,
     },
     amount: {
@@ -42,6 +42,31 @@ const transactionSchema = new mongoose.Schema(
       type: String,
       enum: ['pending', 'completed', 'failed'],
       default: 'completed',
+    },
+    paymentProvider: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+    paymentCode: {
+      type: String,
+      default: '',
+      trim: true,
+      index: true,
+    },
+    providerTransactionId: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+    toUserRole: {
+      type: String,
+      enum: ['', 'client', 'freelancer', 'admin'],
+      default: '',
+    },
+    paymentMetadata: {
+      type: mongoose.Schema.Types.Mixed,
+      default: {},
     },
   },
   { timestamps: true }

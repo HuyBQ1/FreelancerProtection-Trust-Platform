@@ -1,5 +1,5 @@
-import { ArrowLeft, BadgeCheck, BriefcaseBusiness, Building2, CheckCircle2, Mail, Shield, Star, WalletCards } from 'lucide-react';
-import { useState } from 'react';
+﻿import { ArrowLeft, BadgeCheck, BriefcaseBusiness, Building2, CheckCircle2, Mail, Shield, Star, WalletCards } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import SectionCard from '../components/SectionCard';
 import Sidebar from '../components/Sidebar';
@@ -7,6 +7,9 @@ import Topbar from '../components/Topbar';
 import { sidebarItems } from '../data/appData';
 import { persistLanguage } from '../utils/language';
 import { formatMoney } from '../utils/money';
+
+const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
+const TOKEN_KEY = 'fptp_token';
 
 function readStoredUser() {
   try {
@@ -21,6 +24,7 @@ function ClientProfile() {
   const location = useLocation();
   const { profileId } = useParams();
   const [user, setUser] = useState(readStoredUser);
+  const [availableBalance, setAvailableBalance] = useState(user?.balance || 0);
   const language = user?.settings?.language || 'en';
   const isVietnamese = language === 'vi';
   const seed = location.state?.profileSeed || {};
@@ -71,11 +75,55 @@ function ClientProfile() {
     if (page === 'profile') return;
     navigate('/client-dashboard', { state: { initialPage: page } });
   };
+  useEffect(() => {
+    let isMounted = true;
+
+    const fetchLatestBalance = async () => {
+      try {
+        const token = localStorage.getItem(TOKEN_KEY);
+        if (!token) return;
+
+        const response = await fetch(`${API_BASE_URL}/escrow/summary`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const data = await response.json().catch(() => ({}));
+        const nextBalance = data.summary?.balance;
+
+        if (!response.ok || nextBalance === undefined || !isMounted) {
+          return;
+        }
+
+        setAvailableBalance(nextBalance);
+
+        setUser((currentUser) => {
+          const nextUser = {
+            ...currentUser,
+            balance: nextBalance,
+          };
+          localStorage.setItem('fptp_user', JSON.stringify(nextUser));
+          return nextUser;
+        });
+      } catch (error) {
+        console.error('Failed to fetch client profile balance:', error);
+      }
+    };
+
+    fetchLatestBalance();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   return (
     <div className="min-h-screen bg-slate-100/80">
-      <div className="mx-auto flex w-full max-w-[1680px] gap-6 px-4 py-4 sm:px-6 xl:px-8">
-        <Sidebar items={sidebarItems} activePage="profile" onNavigate={handleSidebarNavigate} labels={labels} />
+      <div className="mx-auto flex w-full gap-4 px-3 py-4 sm:gap-5 sm:px-5 xl:gap-6 xl:px-6">
+        <Sidebar
+          items={sidebarItems}
+          activePage="profile"
+          onNavigate={handleSidebarNavigate}
+          labels={labels}
+          balanceValue={formatMoney(availableBalance)}
+        />
         <div className="min-w-0 flex-1 space-y-6">
           <Topbar
             title={isVietnamese ? 'Hồ sơ khách hàng' : 'Client Profile'}
@@ -99,7 +147,7 @@ function ClientProfile() {
           </button>
 
           <SectionCard className="overflow-hidden p-0">
-            <div className="grid gap-0 xl:grid-cols-[1.1fr_0.9fr]">
+            <div className="grid gap-0 2xl:grid-cols-[minmax(0,1.12fr)_minmax(360px,0.88fr)]">
               <div className="bg-ink px-6 py-8 text-white sm:px-8">
                 <div className="flex flex-wrap items-center gap-3">
                   <span className="rounded-full bg-white/10 px-4 py-1.5 text-xs font-semibold uppercase tracking-[0.2em] text-white/70">
@@ -112,7 +160,7 @@ function ClientProfile() {
                     </span>
                   ) : null}
                 </div>
-                <h2 className="mt-5 text-4xl font-bold tracking-tight">{displayName}</h2>
+                <h2 className="mt-5 break-words text-4xl font-bold tracking-tight">{displayName}</h2>
                 <p className="mt-3 max-w-3xl text-lg text-white/80">
                   {clientProfile.companyName || user?.companyName || (isVietnamese ? 'Khách hàng đang tuyển dụng trên nền tảng' : 'Hiring client on the platform')}
                 </p>
@@ -122,7 +170,7 @@ function ClientProfile() {
                     : 'This profile helps freelancers understand the client, hiring scope, payment signals, and trust context before sending proposals.'}
                 </p>
 
-                <div className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                <div className="mt-8 grid gap-4 sm:grid-cols-2 2xl:grid-cols-4">
                   <div className="rounded-3xl border border-white/10 bg-white/5 p-4">
                     <p className="text-sm text-white/60">{isVietnamese ? 'Công việc đã đăng' : 'Posted jobs'}</p>
                     <p className="mt-2 text-2xl font-bold">{user?.postedJobs || 0}</p>
@@ -143,31 +191,31 @@ function ClientProfile() {
               </div>
 
               <div className="bg-slate-50 px-6 py-8 sm:px-8">
-                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-1">
+                <div className="grid gap-4 md:grid-cols-2 2xl:grid-cols-1">
                   <div className="rounded-3xl border border-slate-200 bg-white p-5">
                     <p className="text-sm text-slate-500">Email</p>
-                    <p className="mt-2 inline-flex items-center gap-2 text-lg font-semibold text-ink">
+                    <p className="mt-2 flex flex-wrap items-center gap-2 break-words text-lg font-semibold text-ink">
                       <Mail className="h-5 w-5 text-pine" />
                       {email || (isVietnamese ? 'Chưa cập nhật' : 'Not updated')}
                     </p>
                   </div>
                   <div className="rounded-3xl border border-slate-200 bg-white p-5">
                     <p className="text-sm text-slate-500">{isVietnamese ? 'Công ty' : 'Company'}</p>
-                    <p className="mt-2 inline-flex items-center gap-2 text-lg font-semibold text-ink">
+                    <p className="mt-2 flex flex-wrap items-center gap-2 break-words text-lg font-semibold text-ink">
                       <Building2 className="h-5 w-5 text-pine" />
                       {clientProfile.companyName || user?.companyName || (isVietnamese ? 'Chưa cập nhật' : 'Not updated')}
                     </p>
                   </div>
                   <div className="rounded-3xl border border-slate-200 bg-white p-5">
                     <p className="text-sm text-slate-500">{isVietnamese ? 'Tài khoản ngân hàng' : 'Bank account'}</p>
-                    <p className="mt-2 inline-flex items-center gap-2 text-lg font-semibold text-ink">
+                    <p className="mt-2 flex flex-wrap items-center gap-2 break-words text-lg font-semibold text-ink">
                       <WalletCards className="h-5 w-5 text-pine" />
                       {bankAccount.bankName || (isVietnamese ? 'Chưa thiết lập' : 'Not set')}
                     </p>
                   </div>
                   <div className="rounded-3xl border border-slate-200 bg-white p-5">
                     <p className="text-sm text-slate-500">{isVietnamese ? 'Tín hiệu tin cậy' : 'Trust signal'}</p>
-                    <p className="mt-2 inline-flex items-center gap-2 text-lg font-semibold text-ink">
+                    <p className="mt-2 flex flex-wrap items-center gap-2 break-words text-lg font-semibold text-ink">
                       <Shield className="h-5 w-5 text-pine" />
                       {isVietnamese ? 'Đã xác thực tài khoản' : 'Account verified'}
                     </p>
@@ -221,3 +269,4 @@ function ClientProfile() {
 }
 
 export default ClientProfile;
+

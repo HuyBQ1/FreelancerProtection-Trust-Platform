@@ -1,6 +1,6 @@
 import Job from '../models/Job.js';
 import Transaction from '../models/Transaction.js';
-import { findAccountByIdAndRole } from '../services/accountService.js';
+import { findAccountByIdAndRole, findFirstAccountByRole } from '../services/accountService.js';
 import { assertNoBlockingDispute } from '../services/disputeService.js';
 import { createNotification } from '../services/notificationService.js';
 import { assertClientCanReservePendingPayments, ensurePendingPaymentsForJob } from '../services/pendingPaymentService.js';
@@ -1308,9 +1308,12 @@ export async function updateJobContractMilestone(req, res) {
     }
 
     const approvedAmount = parseBudgetNumber(target.amount);
+    const adminFeeAmount = Math.round(approvedAmount * 0.05);
+    const freelancerPayoutAmount = Math.max(0, approvedAmount - adminFeeAmount);
 
     if (approvedAmount > 0) {
       const { account: freelancerAccount, model: freelancerModel } = await findAccountByIdAndRole(job.assignedFreelancerId, 'freelancer');
+      const adminAccount = adminFeeAmount > 0 ? await findFirstAccountByRole('admin') : null;
       let pendingTransaction = await Transaction.findOne({
         type: 'release',
         status: 'pending',
@@ -1337,39 +1340,92 @@ export async function updateJobContractMilestone(req, res) {
 
         pendingTransaction = await Transaction.create({
           type: 'release',
-          amount: approvedAmount,
+          amount: freelancerPayoutAmount,
           fromUser: req.user._id,
           toUser: job.assignedFreelancerId,
           jobId: job._id,
           milestoneIndex: index,
           description: `Milestone approved and paid for job: ${job.title}`,
           status: 'completed',
+          paymentMetadata: {
+            grossAmount: approvedAmount,
+            freelancerPayoutAmount,
+            adminFeeAmount,
+            adminFeeRate: 0.05,
+          },
         });
         shouldCreditFreelancer = false;
       }
 
       if (freelancerAccount && freelancerModel) {
-        const nextFreelancerBalance = (freelancerAccount.balance || 0) + approvedAmount;
+        const nextFreelancerBalance = (freelancerAccount.balance || 0) + freelancerPayoutAmount;
         await freelancerModel.findByIdAndUpdate(freelancerAccount._id, {
           $set: { balance: nextFreelancerBalance },
         });
       }
 
+      if (adminAccount && adminFeeAmount > 0) {
+        await adminAccount.constructor.findByIdAndUpdate(adminAccount._id, {
+          $set: { balance: (adminAccount.balance || 0) + adminFeeAmount },
+        });
+
+        const existingFeeTransaction = await Transaction.findOne({
+          type: 'platform_fee',
+          jobId: job._id,
+          milestoneIndex: index,
+          fromUser: job.clientId,
+          toUser: adminAccount._id,
+        });
+
+        if (!existingFeeTransaction) {
+          await Transaction.create({
+            type: 'platform_fee',
+            amount: adminFeeAmount,
+            fromUser: job.clientId,
+            toUser: adminAccount._id,
+            toUserRole: 'admin',
+            jobId: job._id,
+            milestoneIndex: index,
+            description: `5% platform fee for milestone: ${job.title}`,
+            status: 'completed',
+            paymentMetadata: {
+              grossAmount: approvedAmount,
+              freelancerPayoutAmount,
+              adminFeeAmount,
+              adminFeeRate: 0.05,
+            },
+          });
+        }
+      }
+
       if (pendingTransaction && pendingTransaction.status === 'pending') {
-        pendingTransaction.amount = approvedAmount;
+        pendingTransaction.amount = freelancerPayoutAmount;
         pendingTransaction.status = 'completed';
         pendingTransaction.description = `Milestone approved and paid for job: ${job.title}`;
+        pendingTransaction.paymentMetadata = {
+          ...(pendingTransaction.paymentMetadata || {}),
+          grossAmount: approvedAmount,
+          freelancerPayoutAmount,
+          adminFeeAmount,
+          adminFeeRate: 0.05,
+        };
         await pendingTransaction.save();
       } else if (!pendingTransaction && shouldCreditFreelancer) {
         await Transaction.create({
           type: 'release',
-          amount: approvedAmount,
+          amount: freelancerPayoutAmount,
           fromUser: req.user._id,
           toUser: job.assignedFreelancerId,
           jobId: job._id,
           milestoneIndex: index,
           description: `Milestone approved and paid for job: ${job.title}`,
           status: 'completed',
+          paymentMetadata: {
+            grossAmount: approvedAmount,
+            freelancerPayoutAmount,
+            adminFeeAmount,
+            adminFeeRate: 0.05,
+          },
         });
       }
     }

@@ -158,6 +158,10 @@ function readStoredUser() {
   }
 }
 
+function persistStoredUser(nextUser) {
+  localStorage.setItem('fptp_user', JSON.stringify(nextUser));
+}
+
 function hasSubmissionAsset(milestone) {
   return Boolean(
     milestone?.submission?.fileDataUrl ||
@@ -189,6 +193,7 @@ function getTransactionLabel(type, language = 'en') {
   if (type === 'release') return language === 'vi' ? 'Giải ngân' : 'Release payment';
   if (type === 'withdrawal') return language === 'vi' ? 'Rút tiền' : 'Withdrawal';
   if (type === 'refund') return language === 'vi' ? 'Hoàn tiền' : 'Refund';
+  if (type === 'platform_fee') return language === 'vi' ? 'Phí nền tảng' : 'Platform fee';
   return language === 'vi' ? 'Giao dịch' : 'Transaction';
 }
 
@@ -201,7 +206,7 @@ function getTransactionTone(type) {
     };
   }
 
-  if (type === 'release' || type === 'withdrawal') {
+  if (type === 'release' || type === 'withdrawal' || type === 'platform_fee') {
     return {
       badge: 'bg-amber-50 text-amber-700',
       amount: 'text-rose-600',
@@ -245,7 +250,7 @@ function ClientDashboard() {
   const location = useLocation();
   const [user, setUser] = useState(readStoredUser);
   const [activePage, setActivePage] = useState(location.state?.initialPage || 'dashboard');
-  const [availableBalance, setAvailableBalance] = useState(0);
+  const [availableBalance, setAvailableBalance] = useState(() => Number(user?.balance || 0));
   const [pendingBalance, setPendingBalance] = useState(0);
   const [settingsSection, setSettingsSection] = useState('profile');
   const [selectedContractId, setSelectedContractId] = useState(`${location.state?.initialContractId || contracts[0]?.id || ''}`);
@@ -257,6 +262,9 @@ function ClientDashboard() {
   const [walletStatus, setWalletStatus] = useState({ type: '', message: '' });
   const [walletAmount, setWalletAmount] = useState('');
   const [walletLoading, setWalletLoading] = useState(false);
+  const [sepayPayment, setSepayPayment] = useState(null);
+  const [topUpModalOpen, setTopUpModalOpen] = useState(false);
+  const [topUpSuccessNotice, setTopUpSuccessNotice] = useState('');
   const [recentTransactions, setRecentTransactions] = useState([]);
   const [reviewModal, setReviewModal] = useState({ open: false, contract: null, milestone: null, milestoneIndex: -1 });
   const [signatureModal, setSignatureModal] = useState({ open: false, contract: null });
@@ -308,7 +316,13 @@ function ClientDashboard() {
       const data = await res.json();
       if (data.summary) {
         if (data.summary.balance !== undefined) {
-          setAvailableBalance(data.summary.balance);
+          const nextBalance = data.summary.balance;
+          setAvailableBalance(nextBalance);
+          setUser((currentUser) => {
+            const nextUser = { ...currentUser, balance: nextBalance };
+            persistStoredUser(nextUser);
+            return nextUser;
+          });
         }
         if (data.summary.pendingBalance !== undefined) {
           setPendingBalance(data.summary.pendingBalance);
@@ -324,7 +338,55 @@ function ClientDashboard() {
 
   useEffect(() => {
     fetchEscrowSummary();
-  }, [fetchEscrowSummary, user, activePage]);
+  }, [fetchEscrowSummary, activePage]);
+
+  useEffect(() => {
+    const hasPendingSepay = Boolean(sepayPayment?.paymentCode)
+      || recentTransactions.some(
+        (transaction) => transaction?.paymentProvider === 'sepay' && transaction?.status === 'pending',
+      );
+
+    if (activePage !== 'escrow' || !hasPendingSepay) {
+      return undefined;
+    }
+
+    const intervalId = window.setInterval(fetchEscrowSummary, 5000);
+    return () => window.clearInterval(intervalId);
+  }, [activePage, fetchEscrowSummary, recentTransactions]);
+
+  useEffect(() => {
+    if (!sepayPayment?.paymentCode) {
+      return;
+    }
+
+    const completedTopUp = recentTransactions.find(
+      (transaction) =>
+        transaction?.paymentProvider === 'sepay'
+        && transaction?.status === 'completed'
+        && transaction?.paymentCode === sepayPayment.paymentCode,
+    );
+
+    if (!completedTopUp) {
+      return;
+    }
+
+    setTopUpModalOpen(false);
+    setSepayPayment(null);
+    setTopUpSuccessNotice(
+      language === 'vi'
+        ? `Nạp ví thành công ${formatMoney(completedTopUp.amount || 0)}.`
+        : `Wallet top-up successful: ${formatMoney(completedTopUp.amount || 0)}.`,
+    );
+  }, [language, recentTransactions, sepayPayment]);
+
+  useEffect(() => {
+    if (!topUpSuccessNotice) {
+      return undefined;
+    }
+
+    const timeoutId = window.setTimeout(() => setTopUpSuccessNotice(''), 5000);
+    return () => window.clearTimeout(timeoutId);
+  }, [topUpSuccessNotice]);
 
   const fetchMyJobs = useCallback(async () => {
     try {
@@ -752,7 +814,16 @@ function ClientDashboard() {
       if (data.job) {
         setPostedJobs((currentJobs) => currentJobs.map((job) => (`${job.id}` === `${data.job.id}` ? data.job : job)));
       }
-      setAvailableBalance((current) => current + (data.refundedAmount || 0));
+      const refundedAmount = data.refundedAmount || 0;
+      setAvailableBalance((current) => {
+        const nextBalance = current + refundedAmount;
+        setUser((currentUser) => {
+          const nextUser = { ...currentUser, balance: nextBalance };
+          persistStoredUser(nextUser);
+          return nextUser;
+        });
+        return nextBalance;
+      });
       setPendingBalance((current) => Math.max(0, current - (data.refundedAmount || 0)));
       setSelectedContractId('');
       setContractFeedback({ type: 'success', message: 'Contract cancelled. The job is open again for freelancers.' });
@@ -794,7 +865,16 @@ function ClientDashboard() {
       }
 
       setPostedJobs((currentJobs) => currentJobs.filter((job) => `${job.id}` !== `${jobId}`));
-      setAvailableBalance((current) => current + (data.refundedAmount || 0));
+      const refundedAmount = data.refundedAmount || 0;
+      setAvailableBalance((current) => {
+        const nextBalance = current + refundedAmount;
+        setUser((currentUser) => {
+          const nextUser = { ...currentUser, balance: nextBalance };
+          persistStoredUser(nextUser);
+          return nextUser;
+        });
+        return nextBalance;
+      });
       setPendingBalance((current) => Math.max(0, current - (data.refundedAmount || 0)));
       setSelectedContractId('');
 
@@ -869,6 +949,7 @@ function ClientDashboard() {
   const releasePayment = async () => {
   const releaseAmount = parseMoneyAmount(walletAmount);
     setWalletStatus({ type: '', message: '' });
+    setSepayPayment(null);
 
     if (!Number.isFinite(releaseAmount) || releaseAmount <= 0) {
       setWalletStatus({ type: 'error', message: 'Enter a valid amount before releasing payment.' });
@@ -899,6 +980,7 @@ function ClientDashboard() {
       if (data.transaction) {
         setRecentTransactions((current) => [data.transaction, ...current].slice(0, 8));
       }
+      setSepayPayment(data.payment || null);
       setWalletAmount('');
       setWalletStatus({ type: 'success', message: 'Payment released successfully.' });
 
@@ -907,7 +989,7 @@ function ClientDashboard() {
         balance: data.summary?.balance ?? availableBalance,
       };
       setUser(nextUser);
-      localStorage.setItem('fptp_user', JSON.stringify(nextUser));
+      persistStoredUser(nextUser);
     } catch (error) {
       setWalletStatus({
         type: 'error',
@@ -950,19 +1032,20 @@ function ClientDashboard() {
         throw new Error(data.message || 'Could not top up balance.');
       }
 
-      setAvailableBalance(data.summary?.balance ?? availableBalance);
       if (data.transaction) {
         setRecentTransactions((current) => [data.transaction, ...current].slice(0, 8));
       }
+      setSepayPayment(data.payment || null);
+      setTopUpModalOpen(true);
       setWalletAmount('');
-      setWalletStatus({ type: 'success', message: 'Balance topped up successfully.' });
-
-      const nextUser = {
-        ...user,
-        balance: data.summary?.balance ?? availableBalance,
-      };
-      setUser(nextUser);
-      localStorage.setItem('fptp_user', JSON.stringify(nextUser));
+      const transferContent = data.payment?.transferContent || data.payment?.paymentCode || '';
+      const bankLabel = data.payment?.bankName || data.payment?.bankCode || 'SePay';
+      const accountNo = data.payment?.accountNumber || '';
+      const amountLabel = data.payment?.amountLabel || formatMoney(topUpAmount);
+      setWalletStatus({
+        type: 'success',
+        message: `SePay pending: Chuyển ${amountLabel} tới ${bankLabel} ${accountNo ? `(${accountNo})` : ''}, nội dung "${transferContent}". Số dư sẽ cập nhật tự động sau khi webhook xác nhận.`,
+      });
     } catch (error) {
       setWalletStatus({
         type: 'error',
@@ -973,9 +1056,102 @@ function ClientDashboard() {
     }
   };
 
+  const topUpPaymentModal = topUpModalOpen && sepayPayment ? (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 px-4 py-6 backdrop-blur-sm">
+      <div className="w-full max-w-2xl overflow-hidden rounded-[28px] bg-white shadow-[0_30px_90px_rgba(15,23,42,0.35)]">
+        <div className="flex items-start justify-between gap-4 border-b border-slate-100 px-6 py-5">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-600">SePay</p>
+            <h3 className="mt-2 text-2xl font-bold text-slate-950">
+              {language === 'vi' ? 'Quét QR để nạp ví' : 'Scan QR to top up'}
+            </h3>
+            <p className="mt-1 text-sm text-slate-500">
+              {language === 'vi' ? 'Chuyển đúng nội dung để hệ thống tự cộng tiền sau webhook.' : 'Use the exact transfer content so the wallet updates automatically.'}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setTopUpModalOpen(false)}
+            className="rounded-full bg-slate-100 p-2 text-slate-500 transition hover:bg-slate-200 hover:text-slate-900"
+            aria-label={language === 'vi' ? 'Đóng' : 'Close'}
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <div className="grid gap-6 p-6 md:grid-cols-[220px_minmax(0,1fr)]">
+          <div className="flex flex-col items-center justify-center rounded-3xl border border-slate-200 bg-slate-50 p-4">
+            {sepayPayment.qrUrl ? (
+              <img src={sepayPayment.qrUrl} alt="SePay QR" className="h-52 w-52 rounded-2xl bg-white object-contain p-2 shadow-sm" />
+            ) : (
+              <div className="flex h-52 w-52 items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-white text-center text-sm text-slate-500">
+                {language === 'vi' ? 'Chưa tạo được QR' : 'QR not available'}
+              </div>
+            )}
+          </div>
+
+          <div className="space-y-3 text-sm">
+            {[
+              [language === 'vi' ? 'Ngân hàng' : 'Bank', sepayPayment.bankName || sepayPayment.bankCode],
+              [language === 'vi' ? 'Số tài khoản' : 'Account number', sepayPayment.accountNumber],
+              [language === 'vi' ? 'Tên tài khoản' : 'Account name', sepayPayment.accountName],
+              [language === 'vi' ? 'Số tiền' : 'Amount', sepayPayment.amountLabel || formatMoney(sepayPayment.amount || 0)],
+            ].map(([label, value]) => (
+              <div key={label} className="rounded-2xl bg-slate-50 px-4 py-3">
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">{label}</p>
+                <p className="mt-1 font-semibold text-slate-900">{value || '-'}</p>
+              </div>
+            ))}
+            <div className="rounded-2xl bg-emerald-50 px-4 py-3">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-emerald-600">
+                {language === 'vi' ? 'Nội dung chuyển khoản' : 'Transfer content'}
+              </p>
+              <p className="mt-1 break-all text-lg font-bold text-emerald-800">{sepayPayment.transferContent || sepayPayment.paymentCode}</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap justify-end gap-3 border-t border-slate-100 px-6 py-4">
+          {sepayPayment.qrUrl ? (
+            <a
+              href={sepayPayment.qrUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="rounded-2xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+            >
+              {language === 'vi' ? 'Mở QR' : 'Open QR'}
+            </a>
+          ) : null}
+          <button
+            type="button"
+            onClick={() => setTopUpModalOpen(false)}
+            className="rounded-2xl bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-500"
+          >
+            {language === 'vi' ? 'Đã hiểu' : 'Got it'}
+          </button>
+        </div>
+      </div>
+    </div>
+  ) : null;
+
   const dashboardLayout = (content) => (
     <div className={`${activePage === 'chat' ? 'h-screen overflow-hidden' : 'min-h-screen'} bg-slate-100/80`}>
-      <div className={`mx-auto flex w-full max-w-[1680px] gap-6 px-4 py-4 sm:px-6 xl:px-8 ${activePage === 'chat' ? 'h-full overflow-hidden' : ''}`}>
+      {topUpSuccessNotice ? (
+        <div className="fixed left-1/2 top-4 z-[60] w-[calc(100%-2rem)] max-w-md -translate-x-1/2 rounded-2xl border border-emerald-200 bg-white px-5 py-4 text-sm font-semibold text-emerald-700 shadow-[0_18px_50px_rgba(16,185,129,0.22)]">
+          <div className="flex items-start justify-between gap-3">
+            <span>{topUpSuccessNotice}</span>
+            <button
+              type="button"
+              onClick={() => setTopUpSuccessNotice('')}
+              className="rounded-full p-1 text-emerald-500 transition hover:bg-emerald-50 hover:text-emerald-700"
+              aria-label={language === 'vi' ? 'Đóng thông báo' : 'Close notification'}
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      ) : null}
+      <div className={`mx-auto flex w-full gap-4 px-3 py-4 sm:gap-5 sm:px-5 xl:gap-6 xl:px-6 ${activePage === 'chat' ? 'h-full overflow-hidden' : ''}`}>
         <Sidebar items={sidebarItems} activePage={activePage} onNavigate={handleSidebarNavigate} labels={labels} balanceValue={formatMoney(availableBalance)} />
         <div className={`min-w-0 flex-1 ${activePage === 'chat' ? 'flex min-h-0 flex-col space-y-4 overflow-hidden' : 'space-y-6'}`}>
           <Topbar
@@ -1032,6 +1208,7 @@ function ClientDashboard() {
           {content}
         </div>
       </div>
+      {topUpPaymentModal}
     </div>
   );
 
@@ -1571,6 +1748,7 @@ function ClientDashboard() {
         onWalletAmountChange={setWalletAmount}
         walletLoading={walletLoading}
         walletStatus={walletStatus}
+        sepayPayment={sepayPayment}
         recentTransactions={recentTransactions}
         formatMoney={formatMoney}
         formatTransactionTime={formatTransactionTime}

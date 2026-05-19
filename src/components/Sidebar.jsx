@@ -30,7 +30,7 @@ const iconMap = {
 
 function Sidebar({ items, activePage, onNavigate, labels, balanceValue = '0 VND' }) {
   return (
-    <aside className="sticky top-4 hidden h-[calc(100vh-2rem)] w-72 shrink-0 lg:block">
+    <aside className="sticky top-4 hidden h-[calc(100dvh-2rem)] w-[clamp(240px,15vw,288px)] shrink-0 lg:block">
       <div className="panel flex h-full flex-col p-5">
         <div className="rounded-3xl bg-ink p-5 text-white">
           <p className="text-sm uppercase tracking-[0.2em] text-white/60">{labels.workspace}</p>
@@ -64,7 +64,7 @@ function Sidebar({ items, activePage, onNavigate, labels, balanceValue = '0 VND'
 
         <div className="mt-auto rounded-3xl border border-slate-200 bg-slate-50 p-5">
           <p className="text-sm font-semibold text-slate-900">{labels.balanceProtected}</p>
-          <p className="mt-2 text-3xl font-bold text-ink">{balanceValue}</p>
+          <p className="mt-2 break-words text-[clamp(1.45rem,1.55vw,1.875rem)] font-bold leading-tight text-ink">{balanceValue}</p>
           <p className="mt-2 text-sm text-slate-500">{labels.balanceDesc}</p>
         </div>
       </div>

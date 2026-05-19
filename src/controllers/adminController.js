@@ -173,7 +173,7 @@ function serializeDispute(review, accountById = new Map()) {
 }
 
 function serializeTransaction(transaction, accountById = new Map(), jobById = new Map()) {
-  const direction = transaction.type === 'deposit' ? 'Incoming' : 'Outgoing';
+  const direction = ['deposit', 'platform_fee'].includes(transaction.type) ? 'Incoming' : 'Outgoing';
   const fromAccount = transaction.fromUser ? accountById.get(transaction.fromUser.toString()) : null;
   const toAccount = transaction.toUser ? accountById.get(transaction.toUser.toString()) : null;
   const job = transaction.jobId ? jobById.get(transaction.jobId.toString()) : null;
@@ -186,6 +186,7 @@ function serializeTransaction(transaction, accountById = new Map(), jobById = ne
     state: titleCase(transaction.status || 'completed'),
     reason: transaction.description || 'MongoDB transaction record',
     type: transaction.type,
+    paymentMetadata: transaction.paymentMetadata || {},
     jobId: transaction.jobId ? transaction.jobId.toString() : '',
     projectTitle: job?.title || '',
     fromUserId: transaction.fromUser ? transaction.fromUser.toString() : '',
@@ -266,6 +267,9 @@ export async function getAdminOverview(req, res) {
     .map((review) => serializeDispute(review, accountById));
   const payments = transactions.map((transaction) => serializeTransaction(transaction, accountById, jobById));
   const protectedVolume = transactions.reduce((sum, transaction) => sum + Math.abs(transaction.amount || 0), 0);
+  const adminFeeTotal = transactions
+    .filter((transaction) => transaction.type === 'platform_fee')
+    .reduce((sum, transaction) => sum + (transaction.amount || 0), 0);
 
   res.status(200).json({
     users,
@@ -286,6 +290,7 @@ export async function getAdminOverview(req, res) {
       highSeverityDisputes: disputes.filter((dispute) => dispute.severity === 'High').length,
       totalReviews: reviews.length,
       protectedVolume: formatCurrency(protectedVolume),
+      adminFeeTotal: formatCurrency(adminFeeTotal),
       paymentActions: payments.filter((payment) => payment.state !== 'Completed').length,
     },
     charts: {

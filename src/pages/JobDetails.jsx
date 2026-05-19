@@ -6,9 +6,25 @@ import Sidebar from '../components/Sidebar';
 import Topbar from '../components/Topbar';
 import { sidebarItems } from '../data/appData';
 import { persistLanguage } from '../utils/language';
+import { formatMoney } from '../utils/money';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
 const TOKEN_KEY = 'fptp_token';
+
+function getTimelineDays(value) {
+  const match = `${value || ''}`.match(/\d+/);
+  const days = match ? Number.parseInt(match[0], 10) : 14;
+
+  if (!Number.isFinite(days)) {
+    return 14;
+  }
+
+  return Math.min(90, Math.max(1, days));
+}
+
+function formatTimelineDays(days, isVietnamese) {
+  return isVietnamese ? `${days} ngày` : `${days} days`;
+}
 
 function JobDetails() {
   const navigate = useNavigate();
@@ -26,6 +42,7 @@ function JobDetails() {
   const [proposalForm, setProposalForm] = useState({ bidAmount: '', timeline: '', coverLetter: '' });
   const [proposalRatings, setProposalRatings] = useState({});
   const [ownRatingSummary, setOwnRatingSummary] = useState(null);
+  const [availableBalance, setAvailableBalance] = useState(user?.balance || 0);
 
   const role = user?.role === 'client' ? 'client' : 'freelancer';
   const language = user?.settings?.language || 'en';
@@ -91,6 +108,41 @@ function JobDetails() {
   useEffect(() => {
     fetchJob();
   }, [fetchJob]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const fetchLatestBalance = async () => {
+      try {
+        const token = localStorage.getItem(TOKEN_KEY);
+        if (!token) return;
+
+        const response = await fetch(`${API_BASE_URL}/escrow/summary`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const data = await response.json().catch(() => ({}));
+        const nextBalance = data.summary?.balance;
+
+        if (!response.ok || nextBalance === undefined || !isMounted) {
+          return;
+        }
+
+        setAvailableBalance(nextBalance);
+        setUser((currentUser) => {
+          const nextUser = { ...currentUser, balance: nextBalance };
+          localStorage.setItem('fptp_user', JSON.stringify(nextUser));
+          return nextUser;
+        });
+      } catch (error) {
+        console.error('Failed to fetch job details balance:', error);
+      }
+    };
+
+    fetchLatestBalance();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   useEffect(() => {
     const loadProposalRatings = async () => {
@@ -389,6 +441,7 @@ function JobDetails() {
     return sum + (Number.isFinite(amount) ? amount : 0);
   }, 0);
   const draftTotalMatches = proposalSelectionDraft ? draftTotalAmount === (proposalSelectionDraft.bidAmount || 0) : false;
+  const proposalTimelineDays = getTimelineDays(proposalForm.timeline);
 
   const topFacts = selectedJob ? [
     {
@@ -510,8 +563,8 @@ function JobDetails() {
           </div>
         </div>
       ) : null}
-      <div className="mx-auto flex w-full max-w-[1680px] gap-6 px-4 py-4 sm:px-6 xl:px-8">
-        <Sidebar items={sidebarItems} activePage="marketplace" onNavigate={(page) => navigate(dashboardPath, { state: { initialPage: page } })} labels={labels} />
+      <div className="flex w-full gap-6 px-4 py-4 sm:px-6 xl:px-8">
+        <Sidebar items={sidebarItems} activePage="marketplace" onNavigate={(page) => navigate(dashboardPath, { state: { initialPage: page } })} labels={labels} balanceValue={formatMoney(availableBalance)} />
         <div className="min-w-0 flex-1 space-y-6">
           <Topbar
             title={isVietnamese ? 'Tổng quan công việc' : 'Job Overview'}
@@ -552,7 +605,7 @@ function JobDetails() {
           ) : (
             <div className="space-y-6">
               <SectionCard className="overflow-hidden p-0">
-                <div className="grid gap-0 xl:grid-cols-[1.15fr_0.85fr]">
+                <div className="grid gap-0">
                   <div className="bg-ink p-6 text-white sm:p-8">
                     <div className="flex flex-wrap items-center gap-3">
                       <span className="rounded-full bg-white/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-white/70">
@@ -588,83 +641,10 @@ function JobDetails() {
                     </div>
                   </div>
 
-                  <div className="bg-white p-6 sm:p-8">
-                    <div className="space-y-4">
-                      <div className="rounded-2xl border border-slate-200 p-4">
-                        <p className="text-xs uppercase tracking-[0.16em] text-slate-400">{isVietnamese ? 'Điểm chính' : 'Quick read'}</p>
-                        <h2 className="mt-2 text-2xl font-bold text-ink">{isVietnamese ? 'Ra quyết định nhanh hơn' : 'Decide faster'}</h2>
-                        <p className="mt-3 text-sm leading-7 text-slate-600">
-                          {isVietnamese
-                            ? 'Khối này gom toàn bộ hành động quan trọng: sửa brief, liên hệ, nhận việc hoặc chọn freelancer phù hợp.'
-                            : 'This side keeps the key actions together: edit the brief, contact the other side, accept the job, or select the right freelancer.'}
-                        </p>
-                      </div>
-
-                      <div className="grid gap-3 sm:grid-cols-2">
-                        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                          <p className="text-xs uppercase tracking-[0.16em] text-slate-400">{isVietnamese ? 'Hình thức' : 'Engagement'}</p>
-                          <p className="mt-2 text-lg font-semibold text-ink">{selectedJob.engagementType || (isVietnamese ? 'Linh hoạt' : 'Flexible')}</p>
-                        </div>
-                        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                          <p className="text-xs uppercase tracking-[0.16em] text-slate-400">{isVietnamese ? 'Địa điểm' : 'Location'}</p>
-                          <p className="mt-2 text-lg font-semibold text-ink">{selectedJob.locationType || 'Remote'}</p>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="mt-6 flex flex-wrap gap-3">
-                      {canEditJob ? (
-                        <button
-                          type="button"
-                          onClick={() => navigate(`/client-jobs/${selectedJob.id}/edit`)}
-                          className="inline-flex flex-1 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
-                        >
-                          <PencilLine className="h-4 w-4" />
-                          {isVietnamese ? 'Sửa công việc' : 'Edit Job Post'}
-                        </button>
-                      ) : null}
-
-                      {canContact ? (
-                        <button
-                          type="button"
-                          onClick={() => handleContact()}
-                          disabled={contacting}
-                          className="inline-flex flex-1 items-center justify-center rounded-2xl bg-ink px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
-                        >
-                          {contacting
-                            ? (isVietnamese ? 'Đang mở trò chuyện...' : 'Opening chat...')
-                            : (role === 'client'
-                              ? (isVietnamese ? 'Liên hệ freelancer' : 'Contact freelancer')
-                              : (isVietnamese ? 'Liên hệ khách hàng' : 'Contact client'))}
-                        </button>
-                      ) : null}
-
-                      {role === 'freelancer' && selectedJob.status === 'assigned' ? (
-                        <button
-                          type="button"
-                          onClick={handleAcceptJob}
-                          className="inline-flex flex-1 items-center justify-center rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
-                        >
-                          {isVietnamese ? 'Đi tới hợp đồng' : 'Open contract'}
-                        </button>
-                      ) : null}
-                    </div>
-
-                    {contactStatus.message ? (
-                      <p className={`mt-4 rounded-2xl px-4 py-3 text-sm ${contactStatus.type === 'error' ? 'bg-rose-50 text-rose-700' : 'bg-emerald-50 text-emerald-700'}`}>
-                        {contactStatus.message}
-                      </p>
-                    ) : null}
-                    {acceptStatus.message ? (
-                      <p className={`mt-4 rounded-2xl px-4 py-3 text-sm ${acceptStatus.type === 'error' ? 'bg-rose-50 text-rose-700' : 'bg-emerald-50 text-emerald-700'}`}>
-                        {acceptStatus.message}
-                      </p>
-                    ) : null}
-                  </div>
                 </div>
               </SectionCard>
 
-              <div className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
+              <div className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr] xl:items-start">
                 <div className="space-y-6">
                   <SectionCard className="p-6">
                     <div className="flex items-center gap-3">
@@ -678,10 +658,9 @@ function JobDetails() {
                     </div>
                     <p className="mt-6 text-sm leading-8 text-slate-600">{selectedJob.description}</p>
 
-                    {(role === 'freelancer' && selectedJob.status === 'open') || isJobOwner ? (
+                    {role === 'freelancer' && selectedJob.status === 'open' ? (
                       <div className="mt-8 border-t border-slate-200 pt-6">
-                        <div className={`grid gap-8 ${role === 'freelancer' && selectedJob.status === 'open' ? 'xl:grid-cols-[minmax(0,1fr)_minmax(300px,380px)]' : 'xl:grid-cols-1'}`}>
-                          {role === 'freelancer' && selectedJob.status === 'open' ? (
+                        <div className="grid gap-8 xl:grid-cols-[minmax(0,1fr)_minmax(300px,380px)]">
                           <div>
                             <div className="grid gap-4 border-b border-slate-200 pb-5 sm:grid-cols-3">
                               <div className="flex items-center gap-3">
@@ -703,20 +682,42 @@ function JobDetails() {
                               <label className="space-y-2">
                                 <span className="text-sm font-semibold text-ink">{isVietnamese ? 'M\u1ee9c ch\u00e0o gi\u00e1' : 'Bid amount'}</span>
                                 <div className="flex overflow-hidden rounded-xl border border-slate-300 bg-white focus-within:border-pine">
-                                  <span className="flex items-center border-r border-slate-200 px-4 text-sm font-semibold text-slate-500">₫</span>
+                                  <span className="flex items-center border-r border-slate-200 px-4 text-sm font-semibold text-slate-500">?</span>
                                   <input value={proposalForm.bidAmount} onChange={(event) => setProposalForm((current) => ({ ...current, bidAmount: event.target.value }))} placeholder="500000" className="min-w-0 flex-1 px-4 py-3 text-sm outline-none" />
                                   <span className="flex items-center border-l border-slate-200 px-4 text-sm font-semibold text-slate-500">VND</span>
                                 </div>
                               </label>
 
                               <label className="space-y-2">
-                                <span className="text-sm font-semibold text-ink">{isVietnamese ? 'Th\u1eddi gian ho\u00e0n th\u00e0nh' : 'Delivery timeframe'}</span>
-                                <input value={proposalForm.timeline} onChange={(event) => setProposalForm((current) => ({ ...current, timeline: event.target.value }))} placeholder={isVietnamese ? 'V\u00ed d\u1ee5: 7 ng\u00e0y ho\u1eb7c 2 tu\u1ea7n' : 'Example: 7 days or 2 weeks'} className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-pine" />
+                                <div className="flex items-center justify-between gap-3">
+                                  <span className="text-sm font-semibold text-ink">{isVietnamese ? 'Th\u1eddi gian ho\u00e0n th\u00e0nh' : 'Delivery timeframe'}</span>
+                                  <span className="rounded-full bg-pine/10 px-3 py-1 text-sm font-bold text-pine">
+                                    {formatTimelineDays(proposalTimelineDays, isVietnamese)}
+                                  </span>
+                                </div>
+                                <div className="rounded-xl border border-slate-300 bg-white px-4 py-3">
+                                  <input
+                                    type="range"
+                                    min="1"
+                                    max="90"
+                                    step="1"
+                                    value={proposalTimelineDays}
+                                    onChange={(event) => setProposalForm((current) => ({
+                                      ...current,
+                                      timeline: formatTimelineDays(Number.parseInt(event.target.value, 10), isVietnamese),
+                                    }))}
+                                    className="h-2 w-full cursor-pointer accent-pine"
+                                  />
+                                  <div className="mt-2 flex justify-between text-xs font-semibold text-slate-400">
+                                    <span>{isVietnamese ? '1 ng?y' : '1 day'}</span>
+                                    <span>{isVietnamese ? '90 ng?y' : '90 days'}</span>
+                                  </div>
+                                </div>
                               </label>
 
                               <label className="space-y-2">
                                 <span className="text-sm font-semibold text-ink">{isVietnamese ? 'L\u1eddi nh\u1eafn \u0111\u1ec1 xu\u1ea5t' : 'Proposal note'}</span>
-                                <textarea value={proposalForm.coverLetter} onChange={(event) => setProposalForm((current) => ({ ...current, coverLetter: event.target.value }))} rows={4} placeholder={isVietnamese ? 'T\u00f3m t\u1eaft c\u00e1ch b\u1ea1n s\u1ebd l\u00e0m, kinh nghi\u1ec7m li\u00ean quan v\u00e0 m\u1ed1c b\u00e0n giao.' : 'Outline your approach, relevant experience, and delivery plan.'} className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm leading-6 outline-none transition focus:border-pine" />
+                                <textarea value={proposalForm.coverLetter} onChange={(event) => setProposalForm((current) => ({ ...current, coverLetter: event.target.value }))} rows={4} placeholder={isVietnamese ? 'T?m t?t c?ch b?n s? l?m, kinh nghi?m li?n quan v? m?c b?n giao.' : 'Outline your approach, relevant experience, and delivery plan.'} className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm leading-6 outline-none transition focus:border-pine" />
                               </label>
 
                               <button type="submit" disabled={proposalSubmitting} className="inline-flex w-full items-center justify-center rounded-xl border border-slate-300 bg-white px-5 py-3 text-base font-bold text-ink transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60">
@@ -728,122 +729,88 @@ function JobDetails() {
                               </button>
                             </form>
 
-                          {proposalStatus.message ? (
+                            {proposalStatus.message ? (
                               <p className={`mt-4 rounded-2xl px-4 py-3 text-sm ${proposalStatus.type === 'error' ? 'bg-rose-50 text-rose-700' : 'bg-emerald-50 text-emerald-700'}`}>
                                 {proposalStatus.message}
                               </p>
                             ) : null}
                           </div>
-                          ) : null}
 
-                          <div className="space-y-5">
-                            <div className="rounded-2xl border border-slate-200 bg-white p-4">
-                              <div className="flex items-start justify-between gap-3">
-                                <div>
-                                  <p className="text-xs uppercase tracking-[0.14em] text-slate-400">{isVietnamese ? 'Danh s\u00e1ch ch\u00e0o gi\u00e1' : 'Bidder list'}</p>
-                                  <p className="mt-1 text-sm text-slate-600">
-                                    {isVietnamese
-                                      ? `C\u00f3 ${proposalCount} ng\u01b0\u1eddi \u0111ang ch\u00e0o gi\u00e1`
-                                      : (proposalCount === 1 ? '1 active bidder' : `${proposalCount} active bidders`)}
-                                  </p>
+                          <div>
+                            <h3 className="text-xl font-bold text-ink">{isVietnamese ? 'L\u1ee3i \u00edch khi ch\u00e0o gi\u00e1' : 'Benefits of bidding'}</h3>
+                            <div className="mt-5 space-y-4">
+                              {[
+                                isVietnamese ? '??t ng?n s?ch v? th?i gian c?a b?n' : 'Set your budget and timeframe',
+                                isVietnamese ? 'Nh?n thanh to?n an to?n qua escrow' : 'Get paid securely through escrow',
+                                isVietnamese ? 'Tr?nh b?y c?ch b?n s? th?c hi?n' : 'Outline your proposal',
+                                isVietnamese ? 'Mi?n ph? g?i ch?o gi? cho c?ng vi?c' : "It's free to submit a bid on jobs",
+                              ].map((item) => (
+                                <div key={item} className="flex items-center gap-3 text-sm font-medium text-slate-700">
+                                  <CircleCheckBig className="h-5 w-5 text-pine" />
+                                  <span>{item}</span>
                                 </div>
-                                <span className="rounded-2xl bg-pine/10 px-3 py-1 text-lg font-bold text-pine">{proposalCount}</span>
-                              </div>
-
-                              <div className="mt-4 max-h-64 space-y-3 overflow-y-auto pr-2">
-                                {selectedJob.proposals?.length ? selectedJob.proposals.map((proposal) => (
-                                  <div key={proposal.id || proposal.freelancerId || proposal.freelancerEmail} className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
-                                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                                      <div className="min-w-0">
-                                        <p className="truncate text-sm font-semibold text-ink">{proposal.freelancerName || (isVietnamese ? 'Freelancer ch\u01b0a \u0111\u1eb7t t\u00ean' : 'Unnamed freelancer')}</p>
-                                        <p className="mt-1 truncate text-xs text-slate-500">{proposal.freelancerEmail || (isVietnamese ? 'Ch\u01b0a c\u00f3 email' : 'No email')}</p>
-                                      </div>
-                                      {isJobOwner ? (
-                                        <div className="flex shrink-0 flex-wrap gap-2">
-                                          <button
-                                            type="button"
-                                            onClick={() => navigate(`/freelancer-profile/${proposal.freelancerId}`, {
-                                              state: {
-                                                profileSeed: {
-                                                  id: proposal.freelancerId,
-                                                  fullName: proposal.freelancerName || proposal.freelancerEmail || '',
-                                                  email: proposal.freelancerEmail || '',
-                                                  headline: isVietnamese ? 'Freelancer \u0111ang ch\u00e0o gi\u00e1 cho c\u00f4ng vi\u1ec7c n\u00e0y' : 'Freelancer bidding on this job',
-                                                },
-                                              },
-                                            })}
-                                            className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
-                                          >
-                                            {isVietnamese ? 'Xem h\u1ed3 s\u01a1' : 'View profile'}
-                                          </button>
-                                          {selectedJob.status === 'open' ? (
-                                            <button
-                                              type="button"
-                                              onClick={() => openProposalSelectionDraft(proposal)}
-                                              disabled={selectingProposalId === proposal.id}
-                                              className="inline-flex items-center justify-center rounded-xl bg-pine px-4 py-2 text-xs font-bold text-white transition hover:bg-pine/90 disabled:cursor-not-allowed disabled:opacity-60"
-                                            >
-                                              {selectingProposalId === proposal.id
-                                                ? (isVietnamese ? '\u0110ang ch\u1ecdn...' : 'Selecting...')
-                                                : (isVietnamese ? 'Ch\u1ecdn freelancer' : 'Select freelancer')}
-                                            </button>
-                                          ) : null}
-                                        </div>
-                                      ) : null}
-                                    </div>
-                                    {isJobOwner ? (
-                                      <div className="mt-4 grid gap-3 rounded-2xl border border-slate-200 bg-white p-3 sm:grid-cols-2">
-                                        <div>
-                                          <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-slate-400">{isVietnamese ? 'Gi\u00e1 deal' : 'Deal price'}</p>
-                                          <p className="mt-1 text-sm font-semibold text-ink">{proposal.bidDisplay || `${proposal.bidAmount || 0} VND`}</p>
-                                        </div>
-                                        <div>
-                                          <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-slate-400">{isVietnamese ? 'Th\u1eddi gian ho\u00e0n th\u00e0nh' : 'Delivery time'}</p>
-                                          <p className="mt-1 text-sm font-semibold text-ink">{proposal.timeline || (isVietnamese ? 'Ch\u01b0a ghi r\u00f5' : 'Not specified')}</p>
-                                        </div>
-                                        {proposal.coverLetter ? (
-                                          <div className="sm:col-span-2">
-                                            <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-slate-400">{isVietnamese ? 'L\u1eddi nh\u1eafn deal' : 'Deal note'}</p>
-                                            <p className="mt-1 line-clamp-3 text-sm leading-6 text-slate-600">{proposal.coverLetter}</p>
-                                          </div>
-                                        ) : null}
-                                      </div>
-                                    ) : null}
-                                  </div>
-                                )) : (
-                                  <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">
-                                    {isVietnamese ? 'Ch\u01b0a c\u00f3 ai ch\u00e0o gi\u00e1 cho c\u00f4ng vi\u1ec7c n\u00e0y.' : 'No bids have been submitted yet.'}
-                                  </div>
-                                )}
-                              </div>
+                              ))}
                             </div>
-
-                            {role === 'freelancer' && selectedJob.status === 'open' ? (
-                              <>
-                                <h3 className="text-xl font-bold text-ink">{isVietnamese ? 'L\u1ee3i \u00edch khi ch\u00e0o gi\u00e1' : 'Benefits of bidding'}</h3>
-                                <div className="mt-5 space-y-4">
-                                  {[
-                                    isVietnamese ? '\u0110\u1eb7t ng\u00e2n s\u00e1ch v\u00e0 th\u1eddi gian c\u1ee7a b\u1ea1n' : 'Set your budget and timeframe',
-                                    isVietnamese ? 'Nh\u1eadn thanh to\u00e1n an to\u00e0n qua escrow' : 'Get paid securely through escrow',
-                                    isVietnamese ? 'Tr\u00ecnh b\u00e0y c\u00e1ch b\u1ea1n s\u1ebd th\u1ef1c hi\u1ec7n' : 'Outline your proposal',
-                                    isVietnamese ? 'Mi\u1ec5n ph\u00ed g\u1eedi ch\u00e0o gi\u00e1 cho c\u00f4ng vi\u1ec7c' : "It's free to submit a bid on jobs",
-                                  ].map((item) => (
-                                    <div key={item} className="flex items-center gap-3 text-sm font-medium text-slate-700">
-                                      <CircleCheckBig className="h-5 w-5 text-pine" />
-                                      <span>{item}</span>
-                                    </div>
-                                  ))}
-                                </div>
-                              </>
-                            ) : null}
                           </div>
                         </div>
                       </div>
-
-
-
                     ) : null}
                   </SectionCard>
+
+                  {isJobOwner ? (
+                    <SectionCard className="flex h-[434px] flex-col overflow-hidden p-6">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="text-xs uppercase tracking-[0.14em] text-slate-400">{isVietnamese ? 'Danh s\u00e1ch ch\u00e0o gi\u00e1' : 'Bidder list'}</p>
+                          <p className="mt-1 text-sm text-slate-600">
+                            {isVietnamese ? `C\u00f3 ${proposalCount} ng\u01b0\u1eddi \u0111ang ch\u00e0o gi\u00e1` : (proposalCount === 1 ? '1 active bidder' : `${proposalCount} active bidders`)}
+                          </p>
+                        </div>
+                        <span className="rounded-2xl bg-pine/10 px-3 py-1 text-lg font-bold text-pine">{proposalCount}</span>
+                      </div>
+
+                      <div className="mt-4 flex-1 space-y-3 overflow-y-auto pr-2">
+                        {selectedJob.proposals?.length ? selectedJob.proposals.map((proposal) => (
+                          <div key={proposal.id || proposal.freelancerId || proposal.freelancerEmail} className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                              <div className="min-w-0">
+                                <p className="truncate text-sm font-semibold text-ink">{proposal.freelancerName || (isVietnamese ? 'Freelancer chưa đặt tên' : 'Unnamed freelancer')}</p>
+                                <p className="mt-1 truncate text-xs text-slate-500">{proposal.freelancerEmail || (isVietnamese ? 'Chưa có email' : 'No email')}</p>
+                              </div>
+                              <div className="flex shrink-0 flex-wrap gap-2">
+                                <button type="button" onClick={() => navigate(`/freelancer-profile/${proposal.freelancerId}`, { state: { profileSeed: { id: proposal.freelancerId, fullName: proposal.freelancerName || proposal.freelancerEmail || '', email: proposal.freelancerEmail || '', headline: isVietnamese ? 'Freelancer đang chào giá cho công việc này' : 'Freelancer bidding on this job' } } })} className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50">{isVietnamese ? 'Xem hồ sơ' : 'View profile'}</button>
+                                {selectedJob.status === 'open' ? (
+                                  <button type="button" onClick={() => openProposalSelectionDraft(proposal)} disabled={selectingProposalId === proposal.id} className="inline-flex items-center justify-center rounded-xl bg-pine px-4 py-2 text-xs font-bold text-white transition hover:bg-pine/90 disabled:cursor-not-allowed disabled:opacity-60">
+                                    {selectingProposalId === proposal.id ? (isVietnamese ? 'Đang chọn...' : 'Selecting...') : (isVietnamese ? 'Chọn freelancer' : 'Select freelancer')}
+                                  </button>
+                                ) : null}
+                              </div>
+                            </div>
+                            <div className="mt-4 grid gap-3 rounded-2xl border border-slate-200 bg-white p-3 sm:grid-cols-2">
+                              <div>
+                                <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-slate-400">{isVietnamese ? 'Giá deal' : 'Deal price'}</p>
+                                <p className="mt-1 text-sm font-semibold text-ink">{proposal.bidDisplay || `${proposal.bidAmount || 0} VND`}</p>
+                              </div>
+                              <div>
+                                <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-slate-400">{isVietnamese ? 'Thời gian hoàn thành' : 'Delivery time'}</p>
+                                <p className="mt-1 text-sm font-semibold text-ink">{proposal.timeline || (isVietnamese ? 'Chưa ghi rõ' : 'Not specified')}</p>
+                              </div>
+                              {proposal.coverLetter ? (
+                                <div className="sm:col-span-2">
+                                  <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-slate-400">{isVietnamese ? 'Lời nhắn deal' : 'Deal note'}</p>
+                                  <p className="mt-1 line-clamp-3 text-sm leading-6 text-slate-600">{proposal.coverLetter}</p>
+                                </div>
+                              ) : null}
+                            </div>
+                          </div>
+                        )) : (
+                          <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">
+                            {isVietnamese ? 'Chưa có ai chào giá cho công việc này.' : 'No bids have been submitted yet.'}
+                          </div>
+                        )}
+                      </div>
+                    </SectionCard>
+                  ) : null}
                 </div>
 
                 <div className="space-y-6">
@@ -853,59 +820,52 @@ function JobDetails() {
                         <Shield className="h-5 w-5" />
                       </div>
                       <div>
-                        <p className="muted">{isVietnamese ? 'K\u1ef9 n\u0103ng ph\u00f9 h\u1ee3p' : 'Skill fit'}</p>
-                        <h2 className="text-2xl font-bold text-ink">{isVietnamese ? 'K\u1ef9 n\u0103ng c\u1ea7n c\u00f3' : 'Required skills'}</h2>
+                        <p className="muted">{isVietnamese ? 'Kỹ năng phù hợp' : 'Skill fit'}</p>
+                        <h2 className="text-2xl font-bold text-ink">{isVietnamese ? 'Kỹ năng cần có' : 'Required skills'}</h2>
                       </div>
                     </div>
                     <div className="mt-6 flex flex-wrap gap-2">
-                      {(selectedJob.skills?.length ? selectedJob.skills : [isVietnamese ? 'Giao ti\u1ebfp t\u1ed1t' : 'Strong communication', isVietnamese ? 'B\u00e0n giao \u0111\u00fang h\u1ea1n' : 'Reliable delivery']).map((skill) => (
-                        <span key={skill} className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-600">
-                          {skill}
-                        </span>
+                      {(selectedJob.skills?.length ? selectedJob.skills : [isVietnamese ? 'Giao tiếp tốt' : 'Strong communication', isVietnamese ? 'Bàn giao đúng hạn' : 'Reliable delivery']).map((skill) => (
+                        <span key={skill} className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-600">{skill}</span>
                       ))}
                     </div>
                   </SectionCard>
 
                   <SectionCard className="p-6">
-                    <p className="muted">{isVietnamese ? 'T\u00f3m t\u1eaft nhanh' : 'Quick overview'}</p>
-                    <h2 className="mt-1 text-2xl font-bold text-ink">{isVietnamese ? 'C\u00e1c \u0111i\u1ec3m c\u1ea7n nh\u1edb' : 'Key facts'}</h2>
+                    <p className="muted">{isVietnamese ? 'Tóm tắt nhanh' : 'Quick overview'}</p>
+                    <h2 className="mt-1 text-2xl font-bold text-ink">{isVietnamese ? 'Các điểm cần nhớ' : 'Key facts'}</h2>
                     <div className="mt-6 space-y-3">
                       {[
-                        `${isVietnamese ? 'Danh m\u1ee5c' : 'Category'}: ${selectedJob.category}`,
-                        `${isVietnamese ? 'Ng\u00e2n s\u00e1ch' : 'Budget'}: ${selectedJob.budget}`,
-                        `${isVietnamese ? 'Th\u1eddi gian' : 'Timeline'}: ${selectedJob.timeline || (isVietnamese ? 'Linh ho\u1ea1t' : 'Flexible')}`,
-                        `${isVietnamese ? '\u0110\u1ecba \u0111i\u1ec3m' : 'Location'}: ${selectedJob.locationType || 'Remote'}`,
+                        `${isVietnamese ? 'Danh mục' : 'Category'}: ${selectedJob.category}`,
+                        `${isVietnamese ? 'Ngân sách' : 'Budget'}: ${selectedJob.budget}`,
+                        `${isVietnamese ? 'Thời gian' : 'Timeline'}: ${selectedJob.timeline || (isVietnamese ? 'Linh hoạt' : 'Flexible')}`,
+                        `${isVietnamese ? 'Địa điểm' : 'Location'}: ${selectedJob.locationType || 'Remote'}`,
                       ].map((item) => (
-                        <div key={item} className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
-                          {item}
-                        </div>
+                        <div key={item} className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">{item}</div>
                       ))}
                     </div>
                   </SectionCard>
 
                   {selectedJob.milestones?.length ? (
-                    <SectionCard className="p-6">
-                      <p className="muted">{isVietnamese ? 'K\u1ebf ho\u1ea1ch thanh to\u00e1n' : 'Payment plan'}</p>
-                      <h2 className="mt-1 text-2xl font-bold text-ink">{isVietnamese ? 'C\u00e1c milestone' : 'Milestones'}</h2>
-                      <div className="mt-6 space-y-3">
+                    <SectionCard className="flex h-[434px] flex-col overflow-hidden p-6">
+                      <p className="muted">{isVietnamese ? 'Kế hoạch thanh toán' : 'Payment plan'}</p>
+                      <h2 className="mt-1 text-2xl font-bold text-ink">{isVietnamese ? 'Các milestone' : 'Milestones'}</h2>
+                      <div className="mt-6 flex-1 space-y-3 overflow-y-auto pr-2">
                         {selectedJob.milestones.map((milestone, index) => (
                           <div key={`${milestone.title}-${index}`} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                               <p className="font-semibold text-ink">{milestone.title}</p>
                               <span className="text-sm font-semibold text-slate-700">{milestone.amount}</span>
                             </div>
-                            <p className="mt-2 text-sm text-slate-500">{milestone.dueDate || (isVietnamese ? 'H\u1ea1n linh ho\u1ea1t' : 'Flexible due date')}</p>
-                            {milestone.description ? (
-                              <p className="mt-2 text-sm leading-6 text-slate-500">{milestone.description}</p>
-                            ) : null}
+                            <p className="mt-2 text-sm text-slate-500">{milestone.dueDate || (isVietnamese ? 'Hạn linh hoạt' : 'Flexible due date')}</p>
+                            {milestone.description ? <p className="mt-2 text-sm leading-6 text-slate-500">{milestone.description}</p> : null}
                           </div>
                         ))}
                       </div>
                     </SectionCard>
                   ) : null}
                 </div>
-              </div>
-            </div>
+              </div>            </div>
           )}
         </div>
       </div>

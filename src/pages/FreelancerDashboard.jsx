@@ -18,8 +18,97 @@ import { readStoredUser, persistStoredUser } from '../utils/storedUser';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
 const TOKEN_KEY = 'fptp_token';
+const VIETQR_BANKS_API = 'https://api.vietqr.io/v2/banks';
+const FALLBACK_VN_BANKS = [
+  { code: 'ABB', shortName: 'ABBANK', name: 'Ngân hàng TMCP An Bình' },
+  { code: 'ACB', shortName: 'ACB', name: 'Ngân hàng TMCP Á Châu' },
+  { code: 'VBA', shortName: 'Agribank', name: 'Ngân hàng Nông nghiệp và Phát triển Nông thôn Việt Nam' },
+  { code: 'BAB', shortName: 'BacABank', name: 'Ngân hàng TMCP Bắc Á' },
+  { code: 'BVB', shortName: 'BaoVietBank', name: 'Ngân hàng TMCP Bảo Việt' },
+  { code: 'BIDV', shortName: 'BIDV', name: 'Ngân hàng TMCP Đầu tư và Phát triển Việt Nam' },
+  { code: 'CAKE', shortName: 'CAKE', name: 'TMCP Việt Nam Thịnh Vượng - Ngân hàng số CAKE by VPBank' },
+  { code: 'CBB', shortName: 'CBBank', name: 'Ngân hàng Thương mại TNHH MTV Xây dựng Việt Nam' },
+  { code: 'CIMB', shortName: 'CIMB', name: 'Ngân hàng TNHH MTV CIMB Việt Nam' },
+  { code: 'CITIBANK', shortName: 'Citibank', name: 'Ngân hàng Citibank, N.A. - Chi nhánh Hà Nội' },
+  { code: 'COOPBANK', shortName: 'COOPBANK', name: 'Ngân hàng Hợp tác xã Việt Nam' },
+  { code: 'DBS', shortName: 'DBSBank', name: 'DBS Bank Ltd - Chi nhánh Thành phố Hồ Chí Minh' },
+  { code: 'EIB', shortName: 'Eximbank', name: 'Ngân hàng TMCP Xuất Nhập khẩu Việt Nam' },
+  { code: 'GPB', shortName: 'GPBank', name: 'Ngân hàng Thương mại TNHH MTV Dầu Khí Toàn Cầu' },
+  { code: 'HDB', shortName: 'HDBank', name: 'Ngân hàng TMCP Phát triển Thành phố Hồ Chí Minh' },
+  { code: 'HLBVN', shortName: 'HongLeong', name: 'Ngân hàng TNHH MTV Hong Leong Việt Nam' },
+  { code: 'HSBC', shortName: 'HSBC', name: 'Ngân hàng TNHH MTV HSBC (Việt Nam)' },
+  { code: 'IBK - HCM', shortName: 'IBKHCM', name: 'Ngân hàng Công nghiệp Hàn Quốc - Chi nhánh TP. Hồ Chí Minh' },
+  { code: 'IBK - HN', shortName: 'IBKHN', name: 'Ngân hàng Công nghiệp Hàn Quốc - Chi nhánh Hà Nội' },
+  { code: 'IVB', shortName: 'IndovinaBank', name: 'Ngân hàng TNHH Indovina' },
+  { code: 'KBank', shortName: 'KBank', name: 'Ngân hàng Đại chúng TNHH Kasikornbank' },
+  { code: 'KEBHANAHCM', shortName: 'KEBHanaHCM', name: 'Ngân hàng KEB Hana - Chi nhánh Thành phố Hồ Chí Minh' },
+  { code: 'KEBHANAHN', shortName: 'KEBHANAHN', name: 'Ngân hàng KEB Hana - Chi nhánh Hà Nội' },
+  { code: 'KLB', shortName: 'KienLongBank', name: 'Ngân hàng TMCP Kiên Long' },
+  { code: 'KBHCM', shortName: 'KookminHCM', name: 'Ngân hàng Kookmin - Chi nhánh Thành phố Hồ Chí Minh' },
+  { code: 'KBHN', shortName: 'KookminHN', name: 'Ngân hàng Kookmin - Chi nhánh Hà Nội' },
+  { code: 'LPB', shortName: 'LPBank', name: 'Ngân hàng TMCP Lộc Phát Việt Nam' },
+  { code: 'MAFC', shortName: 'MAFC', name: 'Công ty Tài chính TNHH MTV Mirae Asset (Việt Nam)' },
+  { code: 'MB', shortName: 'MBBank', name: 'Ngân hàng TMCP Quân đội' },
+  { code: 'MBV', shortName: 'MBV', name: 'Ngân hàng TNHH MTV Việt Nam Hiện Đại' },
+  { code: 'momo', shortName: 'MoMo', name: 'CTCP Dịch Vụ Di Động Trực Tuyến' },
+  { code: 'MSB', shortName: 'MSB', name: 'Ngân hàng TMCP Hàng Hải Việt Nam' },
+  { code: 'NAB', shortName: 'NamABank', name: 'Ngân hàng TMCP Nam Á' },
+  { code: 'NCB', shortName: 'NCB', name: 'Ngân hàng TMCP Quốc Dân' },
+  { code: 'NHB HN', shortName: 'Nonghyup', name: 'Ngân hàng Nonghyup - Chi nhánh Hà Nội' },
+  { code: 'OCB', shortName: 'OCB', name: 'Ngân hàng TMCP Phương Đông' },
+  { code: 'PGB', shortName: 'PGBank', name: 'Ngân hàng TMCP Thịnh vượng và Phát triển' },
+  { code: 'PBVN', shortName: 'PublicBank', name: 'Ngân hàng TNHH MTV Public Việt Nam' },
+  { code: 'PVCB', shortName: 'PVcomBank', name: 'Ngân hàng TMCP Đại Chúng Việt Nam' },
+  { code: 'PVDB', shortName: 'PVcomBank Pay', name: 'Ngân hàng TMCP Đại Chúng Việt Nam Ngân hàng số' },
+  { code: 'STB', shortName: 'Sacombank', name: 'Ngân hàng TMCP Sài Gòn Thương Tín' },
+  { code: 'SGICB', shortName: 'SaigonBank', name: 'Ngân hàng TMCP Sài Gòn Công Thương' },
+  { code: 'SCB', shortName: 'SCB', name: 'Ngân hàng TMCP Sài Gòn' },
+  { code: 'SEAB', shortName: 'SeABank', name: 'Ngân hàng TMCP Đông Nam Á' },
+  { code: 'SHB', shortName: 'SHB', name: 'Ngân hàng TMCP Sài Gòn - Hà Nội' },
+  { code: 'SHBVN', shortName: 'ShinhanBank', name: 'Ngân hàng TNHH MTV Shinhan Việt Nam' },
+  { code: 'SCVN', shortName: 'StandardChartered', name: 'Ngân hàng TNHH MTV Standard Chartered Bank Việt Nam' },
+  { code: 'TCB', shortName: 'Techcombank', name: 'Ngân hàng TMCP Kỹ thương Việt Nam' },
+  { code: 'TIMO', shortName: 'Timo', name: 'Ngân hàng số Timo by Ban Viet Bank' },
+  { code: 'TPB', shortName: 'TPBank', name: 'Ngân hàng TMCP Tiên Phong' },
+  { code: 'Ubank', shortName: 'Ubank', name: 'TMCP Việt Nam Thịnh Vượng - Ngân hàng số Ubank by VPBank' },
+  { code: 'UOB', shortName: 'UnitedOverseas', name: 'Ngân hàng United Overseas - Chi nhánh TP. Hồ Chí Minh' },
+  { code: 'VBSP', shortName: 'VBSP', name: 'Ngân hàng Chính sách Xã hội' },
+  { code: 'VIB', shortName: 'VIB', name: 'Ngân hàng TMCP Quốc tế Việt Nam' },
+  { code: 'VAB', shortName: 'VietABank', name: 'Ngân hàng TMCP Việt Á' },
+  { code: 'VIETBANK', shortName: 'VietBank', name: 'Ngân hàng TMCP Việt Nam Thương Tín' },
+  { code: 'VCCB', shortName: 'VietCapitalBank', name: 'Ngân hàng TMCP Bản Việt' },
+  { code: 'VCB', shortName: 'Vietcombank', name: 'Ngân hàng TMCP Ngoại Thương Việt Nam' },
+  { code: 'ICB', shortName: 'VietinBank', name: 'Ngân hàng TMCP Công thương Việt Nam' },
+  { code: 'VTLMONEY', shortName: 'ViettelMoney', name: 'Tổng Công ty Dịch vụ số Viettel' },
+  { code: 'Vikki', shortName: 'Vikki', name: 'Ngân hàng TNHH MTV Số Vikki' },
+  { code: 'VNPTMONEY', shortName: 'VNPTMoney', name: 'VNPT Money' },
+  { code: 'VPB', shortName: 'VPBank', name: 'Ngân hàng TMCP Việt Nam Thịnh Vượng' },
+  { code: 'VRB', shortName: 'VRB', name: 'Ngân hàng Liên doanh Việt - Nga' },
+  { code: 'WVN', shortName: 'Woori', name: 'Ngân hàng TNHH MTV Woori Việt Nam' },
+];
 const pageTabs = ['dashboard', 'marketplace', 'contracts', 'chat', 'escrow', 'disputes'];
 const filters = ['All', 'Design', 'Development', 'Security', 'Legal'];
+const experienceFilterOptions = ['Entry', 'Intermediate', 'Senior', 'Expert'];
+const engagementFilterOptions = ['Fixed price', 'Hourly', 'Retainer'];
+const locationFilterOptions = ['Remote', 'Hybrid', 'On-site'];
+const skillFilterOptions = [
+  'React',
+  'Vite',
+  'Tailwind CSS',
+  'JavaScript',
+  'Node.js',
+  'Express',
+  'MongoDB',
+  'Mongoose',
+  'FastAPI',
+  'Socket.IO',
+  'UI/UX Design',
+  'Dashboard',
+  'Payment',
+  'KYC',
+  'API Integration',
+  'Responsive UI',
+];
 
 function readFileAsDataUrl(file) {
   return new Promise((resolve, reject) => {
@@ -61,6 +150,7 @@ function getTransactionLabel(type) {
   if (type === 'release') return 'Release payment';
   if (type === 'withdrawal') return 'Withdrawal';
   if (type === 'refund') return 'Refund';
+  if (type === 'platform_fee') return 'Platform fee';
   return 'Transaction';
 }
 
@@ -73,7 +163,7 @@ function getTransactionTone(type) {
     };
   }
 
-  if (type === 'withdrawal') {
+  if (type === 'withdrawal' || type === 'platform_fee') {
     return {
       badge: 'bg-amber-50 text-amber-700',
       amount: 'text-rose-600',
@@ -227,14 +317,16 @@ function FreelancerDashboard() {
   const [durationDays, setDurationDays] = useState('');
   const [fixedBudgetEnabled, setFixedBudgetEnabled] = useState(false);
   const [hourlyBudgetEnabled, setHourlyBudgetEnabled] = useState(false);
-  const [selectedJobTypes, setSelectedJobTypes] = useState([]);
   const [selectedSkillFilters, setSelectedSkillFilters] = useState([]);
   const [selectedCodeCategories, setSelectedCodeCategories] = useState([]);
+  const [selectedExperienceLevels, setSelectedExperienceLevels] = useState([]);
+  const [selectedEngagementTypes, setSelectedEngagementTypes] = useState([]);
+  const [selectedLocationTypes, setSelectedLocationTypes] = useState([]);
   const [jobStateFilter, setJobStateFilter] = useState('all-open');
   const [sortBy, setSortBy] = useState('newest');
   const [selectedContractId, setSelectedContractId] = useState(`${location.state?.initialContractId || contracts[0]?.id || ''}`);
   const [notificationThreadId, setNotificationThreadId] = useState(location.state?.initialThreadId || '');
-  const [availableBalance, setAvailableBalance] = useState(0);
+  const [availableBalance, setAvailableBalance] = useState(() => Number(user?.balance || 0));
   const [pendingBalance, setPendingBalance] = useState(0);
   const [jobList, setJobList] = useState([]);
   const [acceptedJobs, setAcceptedJobs] = useState([]);
@@ -242,6 +334,12 @@ function FreelancerDashboard() {
   const [walletStatus, setWalletStatus] = useState({ type: '', message: '' });
   const [walletAmount, setWalletAmount] = useState('');
   const [walletLoading, setWalletLoading] = useState(false);
+  const [sepayPayment, setSepayPayment] = useState(null);
+  const [topUpModalOpen, setTopUpModalOpen] = useState(false);
+  const [withdrawModalOpen, setWithdrawModalOpen] = useState(false);
+  const [withdrawForm, setWithdrawForm] = useState({ bankName: '', accountNumber: '', accountName: '', amount: '' });
+  const [bankOptions, setBankOptions] = useState(FALLBACK_VN_BANKS);
+  const [bankDropdownOpen, setBankDropdownOpen] = useState(false);
   const [recentTransactions, setRecentTransactions] = useState([]);
   const [submitModal, setSubmitModal] = useState({ open: false, contract: null, milestone: null, milestoneIndex: -1 });
   const [reviewModal, setReviewModal] = useState({ open: false, contract: null, milestone: null, milestoneIndex: -1 });
@@ -283,7 +381,13 @@ function FreelancerDashboard() {
 
     if (location.state?.paymentSummary) {
       if (location.state.paymentSummary.balance !== undefined) {
-        setAvailableBalance(location.state.paymentSummary.balance);
+        const nextBalance = location.state.paymentSummary.balance;
+        setAvailableBalance(nextBalance);
+        setUser((currentUser) => {
+          const nextUser = { ...currentUser, balance: nextBalance };
+          localStorage.setItem('fptp_user', JSON.stringify(nextUser));
+          return nextUser;
+        });
       }
 
       if (location.state.paymentSummary.pendingBalance !== undefined) {
@@ -306,7 +410,13 @@ function FreelancerDashboard() {
       const data = await res.json();
       if (data.summary) {
         if (data.summary.balance !== undefined) {
-          setAvailableBalance(data.summary.balance);
+          const nextBalance = data.summary.balance;
+          setAvailableBalance(nextBalance);
+          setUser((currentUser) => {
+            const nextUser = { ...currentUser, balance: nextBalance };
+            localStorage.setItem('fptp_user', JSON.stringify(nextUser));
+            return nextUser;
+          });
         }
         if (data.summary.pendingBalance !== undefined) {
           setPendingBalance(data.summary.pendingBalance);
@@ -322,7 +432,38 @@ function FreelancerDashboard() {
 
   React.useEffect(() => {
     fetchEscrowSummary();
-  }, [fetchEscrowSummary, user, activePage]);
+  }, [fetchEscrowSummary, activePage]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const fetchVietnameseBanks = async () => {
+      try {
+        const response = await fetch(VIETQR_BANKS_API);
+        const data = await response.json().catch(() => ({}));
+        const banks = Array.isArray(data?.data) ? data.data : [];
+        const normalizedBanks = banks
+          .map((bank) => ({
+            code: bank.code || bank.bin || bank.shortName,
+            shortName: bank.shortName || bank.code || bank.name,
+            name: bank.name || bank.shortName || bank.code,
+          }))
+          .filter((bank) => bank.code && bank.shortName)
+          .sort((left, right) => left.shortName.localeCompare(right.shortName));
+
+        if (isMounted && normalizedBanks.length > 0) {
+          setBankOptions(normalizedBanks);
+        }
+      } catch (error) {
+        console.error('Failed to fetch Vietnamese banks:', error);
+      }
+    };
+
+    fetchVietnameseBanks();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const fetchPublicJobs = useCallback(async () => {
     try {
@@ -422,14 +563,7 @@ function FreelancerDashboard() {
   };
 
   const marketplaceJobs = jobList;
-  const skillFilterOptions = ['.NET 5.0/6', '.NET', 'PHP', 'HTML', 'CSS'];
   const codeCategoryOptions = filters.filter((filter) => filter !== 'All');
-  const jobTypeOptions = [
-    { value: 'local', label: 'Local Jobs' },
-    { value: 'featured', label: 'Featured Jobs' },
-    { value: 'recruiter', label: 'Recruiter Jobs' },
-    { value: 'full-time', label: 'Full Time Jobs' },
-  ];
 
   const toggleArrayValue = (values, value) => (
     values.includes(value) ? values.filter((item) => item !== value) : [...values, value]
@@ -473,17 +607,14 @@ function FreelancerDashboard() {
       const jobDurationDays = getJobDurationDays(job);
       const normalizedLocation = `${job.locationType || job.location || ''}`.toLowerCase();
       const normalizedEngagement = `${job.engagementType || ''}`.toLowerCase();
+      const normalizedExperience = `${job.experienceLevel || ''}`.toLowerCase();
       const normalizedStatus = `${job.status || ''}`.toLowerCase();
 
-      const matchesJobTypes = selectedJobTypes.length === 0 || selectedJobTypes.some((type) => {
-        if (type === 'local') return normalizedLocation.includes('local') || normalizedLocation.includes('onsite');
-        if (type === 'featured') return searchableText.includes('featured');
-        if (type === 'recruiter') return searchableText.includes('recruiter');
-        if (type === 'full-time') return normalizedEngagement.includes('full') || searchableText.includes('full time');
-        return false;
-      });
       const matchesSkills = selectedSkillFilters.length === 0 || selectedSkillFilters.some((skill) => searchableText.includes(skill.toLowerCase()));
       const matchesCodeCategories = selectedCodeCategories.length === 0 || selectedCodeCategories.includes(job.category);
+      const matchesExperience = selectedExperienceLevels.length === 0 || selectedExperienceLevels.some((level) => normalizedExperience === level.toLowerCase());
+      const matchesEngagement = selectedEngagementTypes.length === 0 || selectedEngagementTypes.some((type) => normalizedEngagement === type.toLowerCase());
+      const matchesLocation = selectedLocationTypes.length === 0 || selectedLocationTypes.some((type) => normalizedLocation === type.toLowerCase());
       const matchesJobState = jobStateFilter === 'all' || normalizedStatus === 'open' || normalizedStatus === '';
 
       return (
@@ -493,9 +624,11 @@ function FreelancerDashboard() {
         (minAmount === null || budgetAmount >= minAmount) &&
         (maxAmount === null || budgetAmount <= maxAmount) &&
         (maxDurationDays === null || (jobDurationDays > 0 && jobDurationDays <= maxDurationDays)) &&
-        matchesJobTypes &&
         matchesSkills &&
         matchesCodeCategories &&
+        matchesExperience &&
+        matchesEngagement &&
+        matchesLocation &&
         matchesJobState
       );
     })
@@ -910,11 +1043,15 @@ function FreelancerDashboard() {
   };
 
   const handleWalletAction = async () => {
-    const amount = Number(walletAmount);
+    const amount = Number(withdrawForm.amount);
     setWalletStatus({ type: '', message: '' });
 
     if (!Number.isFinite(amount) || amount <= 0) {
-      setWalletStatus({ type: 'error', message: 'Please enter a valid amount.' });
+      setWalletStatus({ type: 'error', message: language === 'vi' ? 'Vui lòng nhập số tiền hợp lệ.' : 'Please enter a valid amount.' });
+      return;
+    }
+    if (!withdrawForm.bankName.trim() || !withdrawForm.accountNumber.trim() || !withdrawForm.accountName.trim()) {
+      setWalletStatus({ type: 'error', message: language === 'vi' ? 'Vui lòng nhập đầy đủ ngân hàng, số tài khoản, tên chủ tài khoản.' : 'Please enter bank name, account number, and account holder.' });
       return;
     }
 
@@ -933,7 +1070,12 @@ function FreelancerDashboard() {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ amount }),
+        body: JSON.stringify({
+          amount,
+          bankName: withdrawForm.bankName.trim(),
+          accountNumber: withdrawForm.accountNumber.trim(),
+          accountName: withdrawForm.accountName.trim(),
+        }),
       });
       const data = await response.json().catch(() => ({}));
 
@@ -946,8 +1088,15 @@ function FreelancerDashboard() {
       if (data.transaction) {
         setRecentTransactions((current) => [data.transaction, ...current].slice(0, 8));
       }
+      setWithdrawForm({ bankName: '', accountNumber: '', accountName: '', amount: '' });
       setWalletAmount('');
-      setWalletStatus({ type: 'success', message: 'Funds withdrawn successfully.' });
+      setWithdrawModalOpen(false);
+      setWalletStatus({
+        type: 'success',
+        message: language === 'vi'
+          ? 'Yêu cầu rút tiền đã được tạo và đang chờ admin duyệt.'
+          : 'Withdrawal request created and pending admin approval.',
+      });
 
       const nextUser = {
         ...user,
@@ -959,6 +1108,64 @@ function FreelancerDashboard() {
       setWalletStatus({
         type: 'error',
         message: error instanceof Error ? error.message : 'Could not withdraw funds.',
+      });
+    } finally {
+      setWalletLoading(false);
+    }
+  };
+
+  const topUpBalance = async () => {
+    const amount = Number(walletAmount);
+    setWalletStatus({ type: '', message: '' });
+
+    if (!Number.isFinite(amount) || amount <= 0) {
+      setWalletStatus({ type: 'error', message: language === 'vi' ? 'Vui lòng nhập số tiền hợp lệ.' : 'Please enter a valid amount.' });
+      return;
+    }
+
+    const token = localStorage.getItem('fptp_token');
+    if (!token) {
+      setWalletStatus({ type: 'error', message: language === 'vi' ? 'Vui lòng đăng nhập lại trước khi nạp tiền.' : 'Please log in again before topping up.' });
+      return;
+    }
+
+    setWalletLoading(true);
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/escrow/top-up`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ amount }),
+      });
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Could not top up balance.');
+      }
+
+      if (data.transaction) {
+        setRecentTransactions((current) => [data.transaction, ...current].slice(0, 8));
+      }
+      setSepayPayment(data.payment || null);
+      setTopUpModalOpen(Boolean(data.payment));
+      setWalletAmount('');
+      const transferContent = data.payment?.transferContent || data.payment?.paymentCode || '';
+      const bankLabel = data.payment?.bankName || data.payment?.bankCode || 'SePay';
+      const accountNo = data.payment?.accountNumber || '';
+      const amountLabel = data.payment?.amountLabel || formatMoney(amount);
+      setWalletStatus({
+        type: 'success',
+        message: language === 'vi'
+          ? `SePay đang chờ: Chuyển ${amountLabel} tới ${bankLabel} ${accountNo ? `(${accountNo})` : ''}, nội dung "${transferContent}".`
+          : `SePay pending: Transfer ${amountLabel} to ${bankLabel} ${accountNo ? `(${accountNo})` : ''}, content "${transferContent}".`,
+      });
+    } catch (error) {
+      setWalletStatus({
+        type: 'error',
+        message: error instanceof Error ? error.message : 'Could not top up balance.',
       });
     } finally {
       setWalletLoading(false);
@@ -1033,10 +1240,205 @@ function FreelancerDashboard() {
   const transactionBars = recentTransactions.slice(0, 6).reverse();
   const maxTransactionAmount = Math.max(1, ...transactionBars.map((transaction) => transaction.amount || 0));
   const completionRate = totalMilestoneCount > 0 ? Math.round((completedMilestoneCount / totalMilestoneCount) * 100) : 0;
+  const filteredBankOptions = bankOptions
+    .filter((bank) => {
+      const keyword = withdrawForm.bankName.toLowerCase().trim();
+      if (!keyword) return true;
+      return `${bank.shortName} ${bank.name} ${bank.code}`.toLowerCase().includes(keyword);
+    });
+
+  const topUpPaymentModal = topUpModalOpen && sepayPayment ? (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 px-4 py-6 backdrop-blur-sm">
+      <div className="w-full max-w-2xl overflow-hidden rounded-[28px] bg-white shadow-[0_30px_90px_rgba(15,23,42,0.35)]">
+        <div className="flex items-start justify-between gap-4 border-b border-slate-100 px-6 py-5">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-600">SePay</p>
+            <h3 className="mt-2 text-2xl font-bold text-slate-950">
+              {language === 'vi' ? 'Quét QR để nạp ví' : 'Scan QR to top up'}
+            </h3>
+            <p className="mt-1 text-sm text-slate-500">
+              {language === 'vi' ? 'Chuyển đúng nội dung để hệ thống tự cộng tiền sau webhook.' : 'Use the exact transfer content so the wallet updates automatically.'}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setTopUpModalOpen(false)}
+            className="rounded-full bg-slate-100 p-2 text-slate-500 transition hover:bg-slate-200 hover:text-slate-900"
+            aria-label={language === 'vi' ? 'Đóng' : 'Close'}
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <div className="grid gap-6 p-6 md:grid-cols-[220px_minmax(0,1fr)]">
+          <div className="flex flex-col items-center justify-center rounded-3xl border border-slate-200 bg-slate-50 p-4">
+            {sepayPayment.qrUrl ? (
+              <img src={sepayPayment.qrUrl} alt="SePay QR" className="h-52 w-52 rounded-2xl bg-white object-contain p-2 shadow-sm" />
+            ) : (
+              <div className="flex h-52 w-52 items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-white text-center text-sm text-slate-500">
+                {language === 'vi' ? 'Chưa tạo được QR' : 'QR not available'}
+              </div>
+            )}
+          </div>
+
+          <div className="space-y-3 text-sm">
+            {[
+              [language === 'vi' ? 'Ngân hàng' : 'Bank', sepayPayment.bankName || sepayPayment.bankCode],
+              [language === 'vi' ? 'Số tài khoản' : 'Account number', sepayPayment.accountNumber],
+              [language === 'vi' ? 'Tên tài khoản' : 'Account name', sepayPayment.accountName],
+              [language === 'vi' ? 'Số tiền' : 'Amount', sepayPayment.amountLabel || formatMoney(sepayPayment.amount || 0)],
+            ].map(([label, value]) => (
+              <div key={label} className="rounded-2xl bg-slate-50 px-4 py-3">
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">{label}</p>
+                <p className="mt-1 font-semibold text-slate-900">{value || '-'}</p>
+              </div>
+            ))}
+            <div className="rounded-2xl bg-emerald-50 px-4 py-3">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-emerald-600">
+                {language === 'vi' ? 'Nội dung chuyển khoản' : 'Transfer content'}
+              </p>
+              <p className="mt-1 break-all text-lg font-bold text-emerald-800">{sepayPayment.transferContent || sepayPayment.paymentCode}</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap justify-end gap-3 border-t border-slate-100 px-6 py-4">
+          {sepayPayment.qrUrl ? (
+            <a
+              href={sepayPayment.qrUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="rounded-2xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+            >
+              {language === 'vi' ? 'Mở QR' : 'Open QR'}
+            </a>
+          ) : null}
+          <button
+            type="button"
+            onClick={() => setTopUpModalOpen(false)}
+            className="rounded-2xl bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-500"
+          >
+            {language === 'vi' ? 'Đã hiểu' : 'Got it'}
+          </button>
+        </div>
+      </div>
+    </div>
+  ) : null;
+
+  const withdrawRequestModal = withdrawModalOpen ? (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 px-4 py-6 backdrop-blur-sm">
+      <div className="w-full max-w-xl overflow-hidden rounded-[28px] bg-white shadow-[0_30px_90px_rgba(15,23,42,0.35)]">
+        <div className="flex items-start justify-between gap-4 border-b border-slate-100 px-6 py-5">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-600">
+              {language === 'vi' ? 'Rút tiền' : 'Withdrawal'}
+            </p>
+            <h3 className="mt-2 text-2xl font-bold text-slate-950">
+              {language === 'vi' ? 'Tạo yêu cầu rút tiền' : 'Create withdrawal request'}
+            </h3>
+            <p className="mt-1 text-sm text-slate-500">
+              {language === 'vi' ? 'Admin sẽ duyệt yêu cầu trước khi chuyển khoản thành công.' : 'An admin must approve this request before the transfer is completed.'}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setWithdrawModalOpen(false)}
+            className="rounded-full bg-slate-100 p-2 text-slate-500 transition hover:bg-slate-200 hover:text-slate-900"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <div className="space-y-4 p-6">
+          <label className="block">
+            <p className="mb-2 text-sm font-semibold text-slate-700">{language === 'vi' ? 'Ngân hàng' : 'Bank name'}</p>
+            <div className="relative">
+              <input
+                value={withdrawForm.bankName}
+                onFocus={() => setBankDropdownOpen(true)}
+                onChange={(event) => {
+                  setWithdrawForm((current) => ({ ...current, bankName: event.target.value }));
+                  setBankDropdownOpen(true);
+                }}
+                className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 pr-11 text-sm text-slate-900 outline-none transition focus:border-emerald-400"
+                placeholder={language === 'vi' ? 'Chọn hoặc nhập ngân hàng' : 'Select or type a bank'}
+              />
+              <button
+                type="button"
+                onClick={() => setBankDropdownOpen((current) => !current)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500"
+              >
+                ▾
+              </button>
+              {bankDropdownOpen ? (
+                <div className="absolute left-0 right-0 top-[calc(100%+0.5rem)] z-[70] max-h-64 overflow-y-auto rounded-2xl border border-slate-200 bg-white p-2 shadow-[0_18px_50px_rgba(15,23,42,0.18)]">
+                  {filteredBankOptions.length > 0 ? filteredBankOptions.map((bank) => {
+                    const value = `${bank.shortName} - ${bank.name}`;
+                    return (
+                      <button
+                        key={`${bank.code}-${bank.shortName}`}
+                        type="button"
+                        onClick={() => {
+                          setWithdrawForm((current) => ({ ...current, bankName: value }));
+                          setBankDropdownOpen(false);
+                        }}
+                        className="block w-full rounded-xl px-3 py-2 text-left text-sm text-slate-700 transition hover:bg-emerald-50 hover:text-emerald-700"
+                      >
+                        <span className="font-semibold">{bank.shortName}</span>
+                        <span className="text-slate-500"> - {bank.name}</span>
+                      </button>
+                    );
+                  }) : (
+                    <div className="px-3 py-3 text-sm text-slate-500">
+                      {language === 'vi' ? 'Không tìm thấy ngân hàng.' : 'No banks found.'}
+                    </div>
+                  )}
+                </div>
+              ) : null}
+            </div>
+          </label>
+
+          {[
+            ['accountNumber', language === 'vi' ? 'Số tài khoản' : 'Account number'],
+            ['accountName', language === 'vi' ? 'Tên chủ tài khoản' : 'Account holder'],
+            ['amount', language === 'vi' ? 'Số tiền rút' : 'Withdrawal amount'],
+          ].map(([field, label]) => (
+            <label key={field} className="block">
+              <p className="mb-2 text-sm font-semibold text-slate-700">{label}</p>
+              <input
+                value={withdrawForm[field]}
+                onChange={(event) => setWithdrawForm((current) => ({ ...current, [field]: event.target.value }))}
+                className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-emerald-400"
+                placeholder={label}
+              />
+            </label>
+          ))}
+        </div>
+
+        <div className="flex flex-wrap justify-end gap-3 border-t border-slate-100 px-6 py-4">
+          <button
+            type="button"
+            onClick={() => setWithdrawModalOpen(false)}
+            className="rounded-2xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+          >
+            {language === 'vi' ? 'Hủy' : 'Cancel'}
+          </button>
+          <button
+            type="button"
+            onClick={handleWalletAction}
+            disabled={walletLoading}
+            className="rounded-2xl bg-amber-500 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {language === 'vi' ? 'Gửi yêu cầu rút tiền' : 'Submit withdrawal request'}
+          </button>
+        </div>
+      </div>
+    </div>
+  ) : null;
 
   const dashboardLayout = (content) => (
     <div className={`${activePage === 'chat' ? 'h-screen overflow-hidden' : 'min-h-screen'} bg-slate-100/80`}>
-      <div className={`mx-auto flex w-full max-w-[1680px] gap-6 px-4 py-4 sm:px-6 xl:px-8 ${activePage === 'chat' ? 'h-full overflow-hidden' : ''}`}>
+      <div className={`mx-auto flex w-full gap-4 px-3 py-4 sm:gap-5 sm:px-5 xl:gap-6 xl:px-6 ${activePage === 'chat' ? 'h-full overflow-hidden' : ''}`}>
         <Sidebar items={sidebarItems} activePage={activePage} onNavigate={handleSidebarNavigate} labels={labels} balanceValue={formatMoney(availableBalance)} />
         <div className={`min-w-0 flex-1 ${activePage === 'chat' ? 'flex min-h-0 flex-col space-y-4 overflow-hidden' : 'space-y-6'}`}>
           <Topbar
@@ -1074,6 +1476,8 @@ function FreelancerDashboard() {
           {content}
         </div>
       </div>
+      {topUpPaymentModal}
+      {withdrawRequestModal}
     </div>
   );
 
@@ -1098,10 +1502,10 @@ function FreelancerDashboard() {
           </div>
         </SectionCard>
 
-        <div className="grid gap-6 xl:grid-cols-[260px_minmax(0,1fr)]">
+        <div className="grid gap-6 2xl:grid-cols-[260px_minmax(0,1fr)]">
           <aside className="h-fit rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
             <div className="mb-4 flex items-center justify-between border-b border-slate-200 pb-3">
-              <p className="text-sm font-bold text-ink">{filterLabel('B\u1ed9 l\u1ecdc', 'Filter by')}</p>
+              <p className="text-sm font-bold text-ink">Bộ lọc</p>
               <button
                 type="button"
                 onClick={() => {
@@ -1112,24 +1516,26 @@ function FreelancerDashboard() {
                   setMinBudget('');
                   setMaxBudget('');
                   setDurationDays('');
-                  setSelectedJobTypes([]);
                   setSelectedSkillFilters([]);
                   setSelectedCodeCategories([]);
+                  setSelectedExperienceLevels([]);
+                  setSelectedEngagementTypes([]);
+                  setSelectedLocationTypes([]);
                   setJobStateFilter('all-open');
                   setSortBy('newest');
                 }}
                 className="text-xs font-medium text-coral hover:underline"
               >
-                {filterLabel('X\u00f3a', 'Clear')}
+                Xóa
               </button>
             </div>
 
             <div className="space-y-5 text-sm">
               <div className={filterSectionClass}>
-                <p className="mb-3 text-xs font-bold text-slate-900">{filterLabel('Ng\u00e2n s\u00e1ch', 'Budget')}</p>
+                <p className="mb-3 text-xs font-bold text-slate-900">Ngân sách</p>
                 <label className="mb-2 flex items-center gap-2 text-xs text-slate-700">
                   <input type="checkbox" checked={fixedBudgetEnabled} onChange={(event) => setFixedBudgetEnabled(event.target.checked)} className={checkboxClass} />
-                  {filterLabel('D\u1ef1 \u00e1n gi\u00e1 c\u1ed1 \u0111\u1ecbnh', 'Fixed Price Projects')}
+                  Dự án giá cố định
                 </label>
                 <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
                   <input type="number" min="0" value={minBudget} onChange={(event) => setMinBudget(event.target.value)} placeholder="min" disabled={!fixedBudgetEnabled} className={inputClass} />
@@ -1138,29 +1544,19 @@ function FreelancerDashboard() {
                 </div>
                 <label className="mt-3 flex items-center gap-2 text-xs text-slate-700">
                   <input type="checkbox" checked={hourlyBudgetEnabled} onChange={(event) => setHourlyBudgetEnabled(event.target.checked)} className={checkboxClass} />
-                  {filterLabel('D\u1ef1 \u00e1n theo gi\u1edd', 'Hourly Projects')}
+                  Dự án theo giờ
                 </label>
                 <select value={durationDays} onChange={(event) => setDurationDays(event.target.value)} className="mt-3 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs outline-none transition focus:border-pine">
-                  <option value="">{filterLabel('T\u1ea5t c\u1ea3 th\u1eddi l\u01b0\u1ee3ng', 'All Durations')}</option>
-                  <option value="7">{filterLabel('D\u01b0\u1edbi 1 tu\u1ea7n', 'Under 1 week')}</option>
-                  <option value="30">{filterLabel('D\u01b0\u1edbi 1 th\u00e1ng', 'Under 1 month')}</option>
-                  <option value="90">{filterLabel('D\u01b0\u1edbi 3 th\u00e1ng', 'Under 3 months')}</option>
-                  <option value="180">{filterLabel('D\u01b0\u1edbi 6 th\u00e1ng', 'Under 6 months')}</option>
+                  <option value="">Tất cả thời lượng</option>
+                  <option value="7">Dưới 1 tuần</option>
+                  <option value="30">Dưới 1 tháng</option>
+                  <option value="90">Dưới 3 tháng</option>
+                  <option value="180">Dưới 6 tháng</option>
                 </select>
               </div>
 
               <div className={filterSectionClass}>
-                <p className="mb-3 text-xs font-bold text-slate-900">{filterLabel('Lo\u1ea1i', 'Type')}</p>
-                {jobTypeOptions.map((item) => (
-                  <label key={item.value} className="mb-2 flex items-center gap-2 text-xs text-slate-700">
-                    <input type="checkbox" checked={selectedJobTypes.includes(item.value)} onChange={() => setSelectedJobTypes((current) => toggleArrayValue(current, item.value))} className={checkboxClass} />
-                    {item.label}
-                  </label>
-                ))}
-              </div>
-
-              <div className={filterSectionClass}>
-                <p className="mb-3 text-xs font-bold text-slate-900">{filterLabel('K\u1ef9 n\u0103ng', 'Skills')}</p>
+                <p className="mb-3 text-xs font-bold text-slate-900">Kỹ năng</p>
                 {skillFilterOptions.map((skill) => (
                   <label key={skill} className="mb-2 flex items-center gap-2 text-xs text-slate-700">
                     <input type="checkbox" checked={selectedSkillFilters.includes(skill)} onChange={() => setSelectedSkillFilters((current) => toggleArrayValue(current, skill))} className={checkboxClass} />
@@ -1170,7 +1566,7 @@ function FreelancerDashboard() {
               </div>
 
               <div className={filterSectionClass}>
-                <p className="mb-3 text-xs font-bold text-slate-900">{filterLabel('Lo\u1ea1i code', 'Code category')}</p>
+                <p className="mb-3 text-xs font-bold text-slate-900">Danh mục</p>
                 {codeCategoryOptions.map((item) => (
                   <label key={item} className="mb-2 flex items-center gap-2 text-xs text-slate-700">
                     <input type="checkbox" checked={selectedCodeCategories.includes(item)} onChange={() => setSelectedCodeCategories((current) => toggleArrayValue(current, item))} className={checkboxClass} />
@@ -1179,15 +1575,45 @@ function FreelancerDashboard() {
                 ))}
               </div>
 
+              <div className={filterSectionClass}>
+                <p className="mb-3 text-xs font-bold text-slate-900">Mức kinh nghiệm</p>
+                {experienceFilterOptions.map((item) => (
+                  <label key={item} className="mb-2 flex items-center gap-2 text-xs text-slate-700">
+                    <input type="checkbox" checked={selectedExperienceLevels.includes(item)} onChange={() => setSelectedExperienceLevels((current) => toggleArrayValue(current, item))} className={checkboxClass} />
+                    {item}
+                  </label>
+                ))}
+              </div>
+
+              <div className={filterSectionClass}>
+                <p className="mb-3 text-xs font-bold text-slate-900">Hình thức hợp tác</p>
+                {engagementFilterOptions.map((item) => (
+                  <label key={item} className="mb-2 flex items-center gap-2 text-xs text-slate-700">
+                    <input type="checkbox" checked={selectedEngagementTypes.includes(item)} onChange={() => setSelectedEngagementTypes((current) => toggleArrayValue(current, item))} className={checkboxClass} />
+                    {item}
+                  </label>
+                ))}
+              </div>
+
+              <div className={filterSectionClass}>
+                <p className="mb-3 text-xs font-bold text-slate-900">Địa điểm</p>
+                {locationFilterOptions.map((item) => (
+                  <label key={item} className="mb-2 flex items-center gap-2 text-xs text-slate-700">
+                    <input type="checkbox" checked={selectedLocationTypes.includes(item)} onChange={() => setSelectedLocationTypes((current) => toggleArrayValue(current, item))} className={checkboxClass} />
+                    {item}
+                  </label>
+                ))}
+              </div>
+
               <div>
-                <p className="mb-3 text-xs font-bold text-slate-900">{filterLabel('Tr\u1ea1ng th\u00e1i c\u00f4ng vi\u1ec7c', 'Job State')}</p>
+                <p className="mb-3 text-xs font-bold text-slate-900">Trạng thái công việc</p>
                 <label className="mb-2 flex items-center gap-2 text-xs text-slate-700">
                   <input type="radio" name="jobState" checked={jobStateFilter === 'all-open'} onChange={() => setJobStateFilter('all-open')} className="h-3.5 w-3.5 border-slate-300 text-pine focus:ring-pine" />
-                  {filterLabel('T\u1ea5t c\u1ea3 vi\u1ec7c \u0111ang m\u1edf', 'All open jobs')}
+                  All open jobs
                 </label>
                 <label className="flex items-center gap-2 text-xs text-slate-700">
                   <input type="radio" name="jobState" checked={jobStateFilter === 'all'} onChange={() => setJobStateFilter('all')} className="h-3.5 w-3.5 border-slate-300 text-pine focus:ring-pine" />
-                  {filterLabel('T\u1ea5t c\u1ea3 vi\u1ec7c m\u1edf v\u00e0 \u0111\u00e3 \u0111\u00f3ng', 'All open and closed jobs')}
+                  All open and closed jobs
                 </label>
               </div>
             </div>
@@ -1203,10 +1629,10 @@ function FreelancerDashboard() {
                   </button>
                 ))}
                 <select value={sortBy} onChange={(event) => setSortBy(event.target.value)} className="rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-sm outline-none transition focus:border-pine">
-                  <option value="newest">{filterLabel('M\u1eb7c \u0111\u1ecbnh', 'Default')}</option>
-                  <option value="budget-high">{filterLabel('Ng\u00e2n s\u00e1ch cao nh\u1ea5t', 'Highest budget')}</option>
-                  <option value="budget-low">{filterLabel('Ng\u00e2n s\u00e1ch th\u1ea5p nh\u1ea5t', 'Lowest budget')}</option>
-                  <option value="duration-short">{filterLabel('Ho\u00e0n th\u00e0nh nhanh nh\u1ea5t', 'Shortest duration')}</option>
+                  <option value="newest">Default</option>
+                  <option value="budget-high">Highest budget</option>
+                  <option value="budget-low">Lowest budget</option>
+                  <option value="duration-short">Shortest duration</option>
                 </select>
               </div>
             </div>
@@ -1686,13 +2112,13 @@ function FreelancerDashboard() {
         formatTransactionTime={formatTransactionTime}
         getTransactionLabel={getTransactionLabel}
         getTransactionTone={getTransactionTone}
-        onWithdraw={handleWalletAction}
-        onOpenBank={() => setActivePage('bank')}
+        onTopUp={topUpBalance}
+        onWithdraw={() => setWithdrawModalOpen(true)}
       />,
     );
 
     return dashboardLayout(
-      <div className="grid gap-6 xl:grid-cols-[1.08fr_0.92fr] xl:items-start">
+      <div className="grid gap-6 2xl:grid-cols-[minmax(0,1.12fr)_minmax(360px,0.88fr)] 2xl:items-start">
         <SectionCard className="overflow-hidden border border-white/70 bg-white/75 p-0 shadow-[0_24px_70px_rgba(11,16,32,0.08)] backdrop-blur-xl">
           <div className="relative overflow-hidden rounded-[24px] bg-[radial-gradient(circle_at_top_left,rgba(0,179,134,0.22),transparent_28%),linear-gradient(145deg,#0B1020,#111A31_58%,#0E1630)] px-7 py-7 text-white">
             <div className="absolute inset-y-0 right-0 w-64 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.14),transparent_60%)]" />
@@ -1700,7 +2126,7 @@ function FreelancerDashboard() {
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div>
                   <p className="text-[11px] uppercase tracking-[0.24em] text-white/55">{language === 'vi' ? 'Trung tâm rút tiền freelancer' : 'Freelancer payout center'}</p>
-                  <p className="mt-4 text-5xl font-bold tracking-[-0.04em] text-white">{formatMoney(availableBalance)}</p>
+                  <p className="mt-4 break-words text-4xl font-bold tracking-tight text-white sm:text-5xl 2xl:text-6xl">{formatMoney(availableBalance)}</p>
                   <div className="mt-4 inline-flex items-center gap-2 rounded-full border border-emerald-400/20 bg-emerald-400/10 px-3 py-1.5 text-xs font-semibold text-emerald-200">
                     <ArrowUpRight className="h-3.5 w-3.5" />
                     +8.1% vs last month
@@ -1713,7 +2139,7 @@ function FreelancerDashboard() {
                 </div>
               </div>
 
-              <div className="mt-6 grid gap-4 lg:grid-cols-[minmax(0,1fr)_240px]">
+              <div className="mt-6 grid gap-4 xl:grid-cols-[minmax(0,1.08fr)_minmax(280px,0.92fr)]">
                 <div className="rounded-[22px] border border-white/10 bg-white/6 p-4">
                   <p className="text-[11px] uppercase tracking-[0.18em] text-white/50">Action amount</p>
                   <input
@@ -1830,13 +2256,13 @@ function FreelancerDashboard() {
       </div>,
     );
     return dashboardLayout(
-      <div className="grid items-start gap-6 xl:h-[calc(100vh-12.5rem)] xl:grid-cols-[1.08fr_0.92fr] xl:overflow-hidden">
+      <div className="grid items-start gap-6 2xl:h-[calc(100vh-12.5rem)] 2xl:grid-cols-[minmax(0,1.12fr)_minmax(360px,0.88fr)] 2xl:overflow-hidden">
         <SectionCard className="p-6 xl:flex xl:h-full xl:flex-col">
           <p className="muted">Payments</p>
           <h2 className="mt-1 text-xl font-bold text-ink">{language === 'vi' ? 'Trung tâm rút tiền freelancer' : 'Freelancer payout center'}</h2>
           <div className="mt-6 rounded-[30px] bg-ink p-6 text-white xl:flex-1">
             <p className="text-xs uppercase tracking-[0.2em] text-white/55">Available balance</p>
-            <p className="mt-4 text-5xl font-bold tracking-tight text-white">{formatMoney(availableBalance)}</p>
+            <p className="mt-4 break-words text-4xl font-bold tracking-tight text-white sm:text-5xl 2xl:text-6xl">{formatMoney(availableBalance)}</p>
             <p className="mt-3 max-w-xl text-sm leading-7 text-white/70">
               Released milestone payments land here first, then you can move funds to your linked bank account.
             </p>
@@ -1976,7 +2402,7 @@ function FreelancerDashboard() {
 
   return dashboardLayout(
     <div className="space-y-6">
-      <section className="grid gap-6 xl:grid-cols-[minmax(0,1.45fr)_minmax(360px,0.75fr)]">
+      <section className="grid gap-6 2xl:grid-cols-[minmax(0,1.18fr)_minmax(360px,0.82fr)]">
         <div className="relative overflow-hidden rounded-[34px] bg-[radial-gradient(circle_at_12%_15%,rgba(0,179,134,0.34),transparent_28%),linear-gradient(135deg,#07111f,#0B1020_48%,#11223d)] p-7 text-white shadow-[0_28px_80px_rgba(11,16,32,0.22)]">
           <div className="absolute -right-20 top-10 h-64 w-64 rounded-full bg-emerald-400/20 blur-3xl" />
           <div className="absolute bottom-0 right-0 h-44 w-72 rounded-tl-[80px] bg-white/5" />
@@ -2073,7 +2499,7 @@ function FreelancerDashboard() {
         </SectionCard>
       </section>
 
-      <section className="grid gap-6 xl:grid-cols-[minmax(0,1.1fr)_minmax(360px,0.9fr)]">
+      <section className="grid gap-6 2xl:grid-cols-[minmax(0,1.12fr)_minmax(360px,0.88fr)]">
         <SectionCard className="p-6">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
             <div>
@@ -2257,6 +2683,9 @@ function FreelancerDashboard() {
 }
 
 export default FreelancerDashboard;
+
+
+
 
 
 

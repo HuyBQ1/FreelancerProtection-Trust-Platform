@@ -116,6 +116,7 @@ const emptyData = {
     highSeverityDisputes: 0,
     totalReviews: 0,
     protectedVolume: '0 VND',
+    adminFeeTotal: '0 VND',
     paymentActions: 0,
   },
   charts: {
@@ -381,6 +382,9 @@ function AdminDashboard() {
   const filteredDisputes = data.disputes.filter((item) => matchesSearch(item, search));
   const filteredReviews = data.reviews.filter((item) => matchesSearch(item, search));
   const filteredPayments = data.payments.filter((item) => matchesSearch(item, search));
+  const adminFeeHistory = data.payments
+    .filter((item) => item.type === 'platform_fee')
+    .slice(0, 8);
   const selectedUser = filteredUsers.find((item) => `${item.roleKey}-${item.id}` === selectedUserId) || filteredUsers[0] || null;
   const selectedPost = filteredPosts.find((item) => item.id === selectedPostId) || filteredPosts[0] || null;
   const selectedDispute = filteredDisputes.find((item) => item.id === selectedDisputeId) || filteredDisputes[0] || null;
@@ -491,20 +495,25 @@ function AdminDashboard() {
         </SectionCard>
 
         <SectionCard className="p-6">
-          <p className="muted">Phân bổ rủi ro</p>
-          <h2 className="mt-1 text-2xl font-bold text-ink">Trạng thái người dùng</h2>
-          <div className="mt-6 space-y-4">
-            {data.charts.riskDistribution.length ? data.charts.riskDistribution.map((item) => (
-              <div key={item.label} className="space-y-2">
-                <div className="flex items-center justify-between text-sm font-semibold text-slate-700">
-                  <span>{statusLabel(item.label)}</span>
-                  <span>{item.value}%</span>
-                </div>
-                <div className="h-3 rounded-full bg-slate-100">
-                  <div className={`h-3 rounded-full ${item.tone}`} style={{ width: `${item.value}%` }} />
+          <p className="muted">Lịch sử phí admin</p>
+          <h2 className="mt-1 text-2xl font-bold text-ink">Phí 5% đã nhận</h2>
+          <div className="mt-6 max-h-80 space-y-3 overflow-y-auto pr-1">
+            {adminFeeHistory.length ? adminFeeHistory.map((item) => (
+              <div key={item.id} className="rounded-2xl border border-amber-100 bg-amber-50/50 p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="line-clamp-1 text-sm font-bold text-ink">{item.projectTitle || translatePaymentText(item.contract)}</p>
+                    <p className="mt-1 text-xs text-slate-500">{formatDate(item.createdAt)}</p>
+                    <p className="mt-2 text-xs leading-5 text-slate-600">
+                      Gross: {normalizeMoneyDisplay(item.paymentMetadata?.grossAmount || 0)} · Freelancer nhận: {normalizeMoneyDisplay(item.paymentMetadata?.freelancerPayoutAmount || 0)}
+                    </p>
+                  </div>
+                  <p className="shrink-0 text-sm font-bold text-amber-700">+{normalizeMoneyDisplay(item.amount)}</p>
                 </div>
               </div>
-            )) : <EmptyState title="Chưa có người dùng" description="Các tài khoản MongoDB đã đăng ký sẽ xuất hiện tại đây." />}
+            )) : (
+              <EmptyState title="Chưa có phí admin" description="Khi client duyệt milestone, phí 5% sẽ xuất hiện tại đây." />
+            )}
           </div>
         </SectionCard>
       </div>

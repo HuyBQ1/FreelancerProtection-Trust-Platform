@@ -3,7 +3,6 @@
   ArrowUpRight,
   Clock3,
   FileText,
-  Landmark,
   LockKeyhole,
   Send,
   ShieldCheck,
@@ -13,6 +12,22 @@
 import SectionCard from './SectionCard';
 import { getStoredLanguage } from '../utils/language';
 
+const PAYMENT_TELEGRAM_GROUP_URL = 'https://t.me/+GN6qjsRlEYA5Njc9';
+
+function buildVietQrUrl({ bankCode, accountNumber, accountName, amount, transferContent }) {
+  if (!bankCode || !accountNumber || !amount || !transferContent) {
+    return '';
+  }
+
+  const query = new URLSearchParams({
+    amount: `${Math.round(Number(amount) || 0)}`,
+    addInfo: transferContent,
+    accountName: accountName || '',
+  });
+
+  return `https://img.vietqr.io/image/${bankCode}-${accountNumber}-compact2.png?${query.toString()}`;
+}
+
 function PaymentCenter({
   mode = 'client',
   balance = 0,
@@ -21,6 +36,7 @@ function PaymentCenter({
   onWalletAmountChange,
   walletLoading,
   walletStatus,
+  sepayPayment,
   recentTransactions = [],
   formatMoney,
   formatTransactionTime,
@@ -29,7 +45,6 @@ function PaymentCenter({
   onTopUp,
   onRelease,
   onWithdraw,
-  onOpenBank,
 }) {
   const isVietnamese = getStoredLanguage() === 'vi';
   const isClient = mode === 'client';
@@ -69,6 +84,30 @@ function PaymentCenter({
   const pendingHint = isClient
     ? (isVietnamese ? 'Được giữ cho các công việc đã nhận cho tới khi milestone được duyệt.' : 'Reserved for accepted jobs until milestone approval.')
     : (isVietnamese ? 'Công việc đã được duyệt sẽ chuyển từ chờ xử lý sang số dư khả dụng.' : 'Approved work will move from pending to available balance.');
+  const pendingSepayTransaction = recentTransactions.find(
+    (transaction) => transaction?.paymentProvider === 'sepay' && transaction?.status === 'pending',
+  );
+  const pendingSepayMetadata = pendingSepayTransaction?.paymentMetadata || {};
+  const pendingSepayTransferContent = pendingSepayMetadata.transferContent || pendingSepayTransaction?.paymentCode || '';
+  const pendingSepayAmount = pendingSepayTransaction?.amount || 0;
+  const sepayInfo = sepayPayment || (pendingSepayTransaction ? {
+    provider: 'sepay',
+    amount: pendingSepayAmount,
+    amountLabel: formatMoney(pendingSepayAmount),
+    paymentCode: pendingSepayTransaction.paymentCode || '',
+    bankCode: pendingSepayMetadata.bankCode || '',
+    bankName: pendingSepayMetadata.bankName || '',
+    accountNumber: pendingSepayMetadata.accountNumber || '',
+    accountName: pendingSepayMetadata.accountName || '',
+    transferContent: pendingSepayTransferContent,
+    qrUrl: pendingSepayMetadata.qrUrl || buildVietQrUrl({
+      bankCode: pendingSepayMetadata.bankCode,
+      accountNumber: pendingSepayMetadata.accountNumber,
+      accountName: pendingSepayMetadata.accountName,
+      amount: pendingSepayAmount,
+      transferContent: pendingSepayTransferContent,
+    }),
+  } : null);
 
   const primaryActions = isClient
     ? [
@@ -76,13 +115,13 @@ function PaymentCenter({
         { label: isVietnamese ? 'Thanh toán' : 'Release Payment', icon: Send, onClick: onRelease, tone: 'secondary' },
       ]
     : [
-        { label: isVietnamese ? 'Rút tiền' : 'Withdraw Funds', icon: ArrowDownLeft, onClick: onWithdraw, tone: 'primary' },
-        { label: isVietnamese ? 'Mở tài khoản ngân hàng' : 'Open Bank Account', icon: Landmark, onClick: onOpenBank, tone: 'secondary' },
+        { label: isVietnamese ? 'Nạp tiền' : 'Top Up', icon: Wallet, onClick: onTopUp, tone: 'primary' },
+        { label: isVietnamese ? 'Rút tiền' : 'Withdraw Funds', icon: ArrowDownLeft, onClick: onWithdraw, tone: 'secondary' },
       ];
 
   return (
     <div className="space-y-6">
-      <div className="grid gap-6 xl:grid-cols-[1.08fr_0.92fr] xl:items-start">
+      <div className="grid gap-6 2xl:grid-cols-[minmax(0,1.12fr)_minmax(360px,0.88fr)] 2xl:items-start">
         <div className="flex flex-col gap-6">
           <SectionCard className="overflow-hidden border border-white/70 bg-white/75 p-0 shadow-[0_24px_70px_rgba(11,16,32,0.08)] backdrop-blur-xl">
             <div className="relative overflow-hidden rounded-[24px] bg-[radial-gradient(circle_at_top_left,rgba(0,179,134,0.2),transparent_30%),linear-gradient(145deg,#0B1020,#111A31_58%,#0E1630)] px-7 py-7 text-white">
@@ -95,7 +134,7 @@ function PaymentCenter({
                       {eyebrow}
                     </div>
                     <h2 className="mt-5 text-2xl font-bold text-white">{title}</h2>
-                    <p className="mt-4 whitespace-nowrap text-4xl font-bold tracking-tight text-white sm:text-5xl xl:text-6xl">{formatMoney(balance)}</p>
+                    <p className="mt-4 break-words text-4xl font-bold tracking-tight text-white sm:text-5xl 2xl:text-6xl">{formatMoney(balance)}</p>
                     <div className="mt-4 inline-flex items-center gap-2 rounded-full border border-emerald-400/20 bg-emerald-400/10 px-3 py-1.5 text-xs font-semibold text-emerald-200">
                       <ArrowUpRight className="h-3.5 w-3.5" />
                       {trend}
@@ -103,7 +142,7 @@ function PaymentCenter({
                 </div>
               </div>
 
-              <div className="mt-7 grid gap-4 lg:grid-cols-[minmax(0,1.05fr)_minmax(260px,0.95fr)]">
+              <div className="mt-7 grid gap-4 xl:grid-cols-[minmax(0,1.08fr)_minmax(280px,0.92fr)]">
                 <div className="rounded-[22px] border border-white/10 bg-white/6 p-5">
                   <p className="text-[11px] uppercase tracking-[0.18em] text-white/50">Action amount</p>
                     <input
@@ -143,8 +182,23 @@ function PaymentCenter({
 
                 </div>
 
-                {walletStatus?.message ? (
-                  <p className={`mt-4 rounded-2xl px-4 py-3 text-sm ${walletStatus.type === 'error' ? 'bg-rose-400/15 text-rose-100' : 'bg-emerald-400/15 text-emerald-100'}`}>
+                <a
+                  href={PAYMENT_TELEGRAM_GROUP_URL}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="mt-4 flex items-center gap-4 rounded-[22px] border border-sky-300/25 bg-sky-400/10 p-4 text-white transition hover:border-sky-300/45 hover:bg-sky-400/15"
+                >
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-sky-400 text-white shadow-lg shadow-sky-950/20">
+                    <Send className="h-5 w-5" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-bold">Bot nhận thông tin thanh toán</p>
+                    <p className="mt-1 text-xs leading-5 text-white/60">Telegram group</p>
+                  </div>
+                </a>
+
+                {walletStatus?.message && walletStatus.type === 'error' ? (
+                  <p className="mt-4 rounded-2xl bg-rose-400/15 px-4 py-3 text-sm text-rose-100">
                     {walletStatus.message}
                   </p>
                 ) : null}
@@ -155,8 +209,8 @@ function PaymentCenter({
 
         </div>
 
-        <div className="space-y-6">
-          <SectionCard className="border border-white/70 bg-white/70 p-6 shadow-[0_18px_60px_rgba(11,16,32,0.06)] backdrop-blur-xl">
+        <div className="flex flex-col">
+          <SectionCard className="flex flex-col border border-white/70 bg-white/70 p-5 shadow-[0_18px_60px_rgba(11,16,32,0.06)] backdrop-blur-xl sm:p-6 2xl:h-[590px]">
             <div className="flex items-center justify-between gap-3">
               <div>
                 <p className="muted">{isVietnamese ? 'Giao dịch' : 'Transactions'}</p>
@@ -167,7 +221,7 @@ function PaymentCenter({
               </span>
             </div>
 
-            <div className="mt-6 flex max-h-[390px] min-h-[320px] flex-col rounded-[28px] border border-slate-200 bg-gradient-to-b from-slate-50 to-white p-5">
+            <div className="mt-6 flex min-h-[320px] flex-1 flex-col overflow-hidden rounded-[28px] border border-slate-200 bg-gradient-to-b from-slate-50 to-white p-5">
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <p className="text-xs uppercase tracking-[0.18em] text-slate-400">{isVietnamese ? 'Hoạt động mới nhất' : 'Latest activity'}</p>
@@ -243,5 +297,4 @@ function PaymentCenter({
 }
 
 export default PaymentCenter;
-
 
