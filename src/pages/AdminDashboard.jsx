@@ -247,6 +247,7 @@ function AdminDashboard() {
   const [selectedPostId, setSelectedPostId] = useState('');
   const [selectedUserId, setSelectedUserId] = useState('');
   const [selectedDisputeId, setSelectedDisputeId] = useState('');
+  const [selectedWithdrawal, setSelectedWithdrawal] = useState(null);
   const language = user?.settings?.language || 'en';
   const dashboardLabels = getAdminLabels(language);
   const dashboardTitles = { ...getAdminTitles(language), kyc: 'Duyệt KYC' };
@@ -1031,8 +1032,10 @@ function AdminDashboard() {
   );
 
   const topUpPayments = filteredPayments.filter((item) => item.type === 'deposit' && !item.jobId);
-  const projectPayments = filteredPayments.filter((item) => item.type !== 'deposit' || item.jobId);
+  const withdrawalPayments = filteredPayments.filter((item) => item.type === 'withdrawal');
+  const projectPayments = filteredPayments.filter((item) => item.type !== 'withdrawal' && (item.type !== 'deposit' || item.jobId));
   const topUpTotal = topUpPayments.reduce((sum, item) => sum + Number(`${item.amount || ''}`.replace(/[^0-9]/g, '') || 0), 0);
+  const withdrawalTotal = withdrawalPayments.reduce((sum, item) => sum + Number(`${item.amount || ''}`.replace(/[^0-9]/g, '') || 0), 0);
   const projectOptions = Array.from(projectPayments.reduce((options, item) => {
     const key = item.jobId || '__no_project__';
     if (!options.has(key)) {
@@ -1054,8 +1057,21 @@ function AdminDashboard() {
     ? projectPayments
     : projectPayments.filter((item) => (item.jobId || '__no_project__') === selectedProjectKey);
   const projectTotal = visibleProjectPayments.reduce((sum, item) => sum + Number(`${item.amount || ''}`.replace(/[^0-9]/g, '') || 0), 0);
+  const [selectedPaymentView, setSelectedPaymentView] = useState('all');
+  const paymentViews = [
+    { key: 'all', label: 'Tất cả giao dịch' },
+    { key: 'deposit', label: 'Nạp tiền ví' },
+    { key: 'withdrawal', label: 'Rút tiền' },
+    { key: 'project', label: 'Tiền dự án' },
+  ];
+  const selectedPayments = selectedPaymentView === 'all'
+    ? filteredPayments
+    : selectedPaymentView === 'project'
+      ? visibleProjectPayments
+      : filteredPayments.filter((item) => item.type === selectedPaymentView);
+
   const renderPaymentRows = (items, emptyTitle, emptyDescription, group) => (
-    <div className="mt-5 max-h-[680px] space-y-3 overflow-y-auto pr-1">
+    <div className="mt-5 max-h-[720px] space-y-3 overflow-y-auto pr-1">
       {items.length ? items.map((item) => (
         <div key={item.id} className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-[0_18px_42px_rgba(15,23,42,0.08)]">
           <div className="flex items-start justify-between gap-3">
@@ -1076,6 +1092,9 @@ function AdminDashboard() {
               <p className="mt-1 text-lg font-bold text-ink">{normalizeMoneyDisplay(item.amount)}</p>
             </div>
             <div className="flex flex-wrap justify-end gap-2">
+              {item.type === 'withdrawal' ? (
+                <button onClick={() => setSelectedWithdrawal(item)} className="rounded-xl border border-sky-300 px-3 py-2 text-xs font-semibold text-sky-700 hover:bg-sky-50">Xem</button>
+              ) : null}
               <button onClick={() => updatePaymentState(item, 'pending')} className="rounded-xl border border-amber-300 px-3 py-2 text-xs font-semibold text-amber-700 hover:bg-amber-50">Giữ</button>
               <button onClick={() => updatePaymentState(item, 'completed')} className="rounded-xl bg-ink px-3 py-2 text-xs font-semibold text-white hover:bg-slate-800">Hoàn tất</button>
               <button onClick={() => updatePaymentState(item, 'failed')} className="rounded-xl border border-rose-300 px-3 py-2 text-xs font-semibold text-rose-700 hover:bg-rose-50">Lỗi</button>
@@ -1088,50 +1107,129 @@ function AdminDashboard() {
 
   const paymentsContent = (
     <SectionCard className="p-6">
-      <TableHeader eyebrow="Điều phối thanh toán" title="Lịch sử giao dịch từ MongoDB" placeholder="Tìm giao dịch hoặc tài khoản" search={search} setSearch={setSearch} />
-      <div className="mt-6 grid gap-5 xl:grid-cols-2">
-        <div className="rounded-[28px] border border-emerald-100 bg-emerald-50/45 p-5">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Nạp ví</p>
-              <h3 className="mt-1 text-xl font-bold text-ink">Nạp tiền ví</h3>
-              <p className="mt-2 text-sm text-slate-500">Tiền người dùng nạp vào ví nền tảng.</p>
+      <TableHeader eyebrow="Điều phối thanh toán" title="Trung tâm quản lý thanh toán" placeholder="Tìm giao dịch hoặc tài khoản" search={search} setSearch={setSearch} />
+      <div className="mt-6 grid gap-6 xl:grid-cols-[320px_minmax(0,1fr)]">
+        <div className="rounded-[28px] border border-slate-200 bg-[linear-gradient(180deg,#0f172a,#111827)] p-5 text-white shadow-[0_24px_80px_rgba(15,23,42,0.22)]">
+          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-white/55">Payment hub</p>
+          <h3 className="mt-3 text-2xl font-bold">Điều phối dòng tiền</h3>
+          <p className="mt-3 text-sm leading-6 text-white/70">Theo dõi nạp tiền ví, rút tiền và giao dịch theo dự án trong một trung tâm duy nhất.</p>
+
+          <div className="mt-6 grid gap-3">
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+              <p className="text-xs uppercase tracking-[0.16em] text-white/45">Nạp ví</p>
+              <p className="mt-2 text-2xl font-bold text-emerald-300">{normalizeMoneyDisplay(topUpTotal)}</p>
+              <p className="mt-1 text-xs text-white/55">{topUpPayments.length} giao dịch</p>
             </div>
-            <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-emerald-700">{topUpPayments.length} giao dịch</span>
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+              <p className="text-xs uppercase tracking-[0.16em] text-white/45">Rút tiền</p>
+              <p className="mt-2 text-2xl font-bold text-amber-300">{normalizeMoneyDisplay(withdrawalTotal)}</p>
+              <p className="mt-1 text-xs text-white/55">{withdrawalPayments.length} giao dịch</p>
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+              <p className="text-xs uppercase tracking-[0.16em] text-white/45">Dự án</p>
+              <p className="mt-2 text-2xl font-bold text-sky-300">{normalizeMoneyDisplay(projectTotal)}</p>
+              <p className="mt-1 text-xs text-white/55">{visibleProjectPayments.length} giao dịch</p>
+            </div>
           </div>
-          <p className="mt-5 text-3xl font-bold text-emerald-700">{normalizeMoneyDisplay(topUpTotal)}</p>
-          {renderPaymentRows(topUpPayments, 'Chưa có giao dịch nạp tiền', 'Các giao dịch nạp tiền vào ví sẽ xuất hiện ở nhóm này.', 'wallet')}
+
+          <div className="mt-6 rounded-2xl border border-white/10 bg-white/5 p-4">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/50">Chế độ xem</p>
+            <div className="mt-3 space-y-2">
+              {paymentViews.map((view) => (
+                <button
+                  key={view.key}
+                  type="button"
+                  onClick={() => setSelectedPaymentView(view.key)}
+                  className={`w-full rounded-2xl px-4 py-3 text-left text-sm font-semibold transition ${
+                    selectedPaymentView === view.key
+                      ? 'bg-white text-ink'
+                      : 'bg-white/5 text-white/75 hover:bg-white/10'
+                  }`}
+                >
+                  {view.label}
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
 
-        <div className="rounded-[28px] border border-sky-100 bg-sky-50/45 p-5">
-          <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="rounded-[28px] border border-slate-200 bg-slate-50/70 p-5">
+          <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Dự án</p>
-              <h3 className="mt-1 text-xl font-bold text-ink">Tiền dự án</h3>
-              <p className="mt-2 text-sm text-slate-500">Tiền liên quan đến milestone, giải ngân và rút tiền.</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Danh sách giao dịch</p>
+              <h3 className="mt-1 text-2xl font-bold text-ink">{paymentViews.find((view) => view.key === selectedPaymentView)?.label}</h3>
+              <p className="mt-2 text-sm text-slate-500">Quản lý trạng thái từng giao dịch và rà soát luồng tiền theo thời gian thực.</p>
             </div>
-            <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-sky-700">{visibleProjectPayments.length} giao dịch</span>
+            <div className="rounded-2xl bg-white px-4 py-3 text-right shadow-sm">
+              <p className="text-xs uppercase tracking-[0.16em] text-slate-400">Số lượng</p>
+              <p className="mt-1 text-xl font-bold text-ink">{selectedPayments.length}</p>
+            </div>
           </div>
-          <label className="mt-5 block">
-            <span className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">Chọn dự án</span>
-            <select
-              value={selectedProjectKey}
-              onChange={(event) => setSelectedProjectKey(event.target.value)}
-              className="mt-2 w-full rounded-2xl border border-sky-100 bg-white px-4 py-3 text-sm font-semibold text-ink outline-none transition focus:border-sky-300 focus:ring-4 focus:ring-sky-100"
-            >
-              <option value="all">Tất cả dự án và giao dịch ({projectPayments.length})</option>
-              {projectOptions.map((option) => (
-                <option key={option.key} value={option.key}>{option.label} ({option.count})</option>
-              ))}
-            </select>
-          </label>
-          <p className="mt-5 text-3xl font-bold text-sky-700">{normalizeMoneyDisplay(projectTotal)}</p>
-          {renderPaymentRows(visibleProjectPayments, 'Chưa có giao dịch tiền dự án', 'Các giao dịch milestone, giải ngân và rút tiền sẽ xuất hiện ở nhóm này.', 'project')}
+
+          {selectedPaymentView === 'project' ? (
+            <label className="mt-5 block rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+              <span className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">Chọn dự án</span>
+              <select
+                value={selectedProjectKey}
+                onChange={(event) => setSelectedProjectKey(event.target.value)}
+                className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-ink outline-none transition focus:border-sky-300 focus:ring-4 focus:ring-sky-100"
+              >
+                <option value="all">Tất cả dự án và giao dịch ({projectPayments.length})</option>
+                {projectOptions.map((option) => (
+                  <option key={option.key} value={option.key}>{option.label} ({option.count})</option>
+                ))}
+              </select>
+            </label>
+          ) : null}
+
+          {renderPaymentRows(
+            selectedPayments,
+            'Chưa có giao dịch',
+            'Các giao dịch sẽ hiển thị tại đây khi có dữ liệu từ MongoDB.',
+            selectedPaymentView === 'deposit' ? 'wallet' : 'project',
+          )}
         </div>
       </div>
     </SectionCard>
   );
-
+  const withdrawalModal = selectedWithdrawal ? (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 px-4 py-6 backdrop-blur-sm">
+      <div className="w-full max-w-2xl overflow-hidden rounded-[28px] bg-white shadow-[0_30px_90px_rgba(15,23,42,0.35)]">
+        <div className="flex items-start justify-between gap-4 border-b border-slate-100 px-6 py-5">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-600">Rút tiền</p>
+            <h3 className="mt-2 text-2xl font-bold text-slate-950">Chi tiết yêu cầu rút tiền</h3>
+          </div>
+          <button type="button" onClick={() => setSelectedWithdrawal(null)} className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-50">
+            Đóng
+          </button>
+        </div>
+        <div className="grid gap-4 px-6 py-5 sm:grid-cols-2">
+          {[
+            ['Người rút', accountDisplay(selectedWithdrawal.fromUserLabel, selectedWithdrawal.fromUserId)],
+            ['Vai trò', selectedWithdrawal.paymentMetadata?.requesterRole || selectedWithdrawal.fromUserRole || 'Không xác định'],
+            ['Ngân hàng', selectedWithdrawal.paymentMetadata?.bankName || 'Chưa có'],
+            ['Tên chủ tài khoản', selectedWithdrawal.paymentMetadata?.accountName || 'Chưa có'],
+            ['Số tài khoản', selectedWithdrawal.paymentMetadata?.accountNumber || 'Chưa có'],
+            ['Số tiền', normalizeMoneyDisplay(selectedWithdrawal.amount)],
+            ['Trạng thái', statusLabel(selectedWithdrawal.state)],
+            ['Mã giao dịch', selectedWithdrawal.id || selectedWithdrawal.paymentCode || 'Chưa có'],
+          ].map(([label, value]) => (
+            <div key={label} className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">{label}</p>
+              <p className="mt-2 break-words text-sm font-bold text-ink">{value}</p>
+            </div>
+          ))}
+          <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 sm:col-span-2">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-amber-700">Ghi chú / mô tả</p>
+            <p className="mt-2 text-sm font-semibold leading-6 text-amber-900">
+              {selectedWithdrawal.paymentMetadata?.note || selectedWithdrawal.reason || selectedWithdrawal.contract || 'Không có ghi chú'}
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  ) : null;
   const integratedDisputesContent = (
     <SectionCard className="p-6">
       <DisputeCenter role="admin" contracts={data.contracts} />
@@ -1174,6 +1272,7 @@ function AdminDashboard() {
                 <p className="text-sm font-semibold text-slate-500">Đang tải dữ liệu MongoDB...</p>
               </SectionCard>
           ) : tabContent[activeTab]}
+          {withdrawalModal}
         </div>
       </div>
     </div>

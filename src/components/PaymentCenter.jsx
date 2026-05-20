@@ -112,7 +112,7 @@ function PaymentCenter({
   const primaryActions = isClient
     ? [
         { label: isVietnamese ? 'Nạp tiền' : 'Top Up', icon: Wallet, onClick: onTopUp, tone: 'primary' },
-        { label: isVietnamese ? 'Thanh toán' : 'Release Payment', icon: Send, onClick: onRelease, tone: 'secondary' },
+        { label: isVietnamese ? 'Rút tiền' : 'Withdraw Funds', icon: ArrowDownLeft, onClick: onWithdraw, tone: 'secondary' },
       ]
     : [
         { label: isVietnamese ? 'Nạp tiền' : 'Top Up', icon: Wallet, onClick: onTopUp, tone: 'primary' },

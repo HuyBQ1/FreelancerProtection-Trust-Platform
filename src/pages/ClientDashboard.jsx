@@ -19,6 +19,19 @@ import { formatMoney, parseMoneyAmount } from '../utils/money';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
 const TOKEN_KEY = 'fptp_token';
+const VIETQR_BANKS_API = 'https://api.vietqr.io/v2/banks';
+const FALLBACK_VN_BANKS = [
+  { code: 'VCB', shortName: 'Vietcombank', name: 'Ngân hàng TMCP Ngoại Thương Việt Nam' },
+  { code: 'TCB', shortName: 'Techcombank', name: 'Ngân hàng TMCP Kỹ thương Việt Nam' },
+  { code: 'MB', shortName: 'MBBank', name: 'Ngân hàng TMCP Quân đội' },
+  { code: 'ACB', shortName: 'ACB', name: 'Ngân hàng TMCP Á Châu' },
+  { code: 'BIDV', shortName: 'BIDV', name: 'Ngân hàng TMCP Đầu tư và Phát triển Việt Nam' },
+  { code: 'VTB', shortName: 'VietinBank', name: 'Ngân hàng TMCP Công thương Việt Nam' },
+  { code: 'TPB', shortName: 'TPBank', name: 'Ngân hàng TMCP Tiên Phong' },
+  { code: 'VIB', shortName: 'VIB', name: 'Ngân hàng TMCP Quốc tế Việt Nam' },
+  { code: 'MSB', shortName: 'MSB', name: 'Ngân hàng TMCP Hàng Hải Việt Nam' },
+  { code: 'HDB', shortName: 'HDBank', name: 'Ngân hàng TMCP Phát triển TP.HCM' },
+];
 const pageTabs = ['dashboard', 'marketplace', 'contracts', 'chat', 'escrow', 'disputes'];
 function getLabels(language) {
   if (language === 'vi') {
@@ -265,6 +278,10 @@ function ClientDashboard() {
   const [sepayPayment, setSepayPayment] = useState(null);
   const [topUpModalOpen, setTopUpModalOpen] = useState(false);
   const [topUpSuccessNotice, setTopUpSuccessNotice] = useState('');
+  const [withdrawModalOpen, setWithdrawModalOpen] = useState(false);
+  const [withdrawForm, setWithdrawForm] = useState({ bankName: '', accountNumber: '', accountName: '', amount: '' });
+  const [bankOptions, setBankOptions] = useState(FALLBACK_VN_BANKS);
+  const [bankDropdownOpen, setBankDropdownOpen] = useState(false);
   const [recentTransactions, setRecentTransactions] = useState([]);
   const [reviewModal, setReviewModal] = useState({ open: false, contract: null, milestone: null, milestoneIndex: -1 });
   const [signatureModal, setSignatureModal] = useState({ open: false, contract: null });
@@ -339,6 +356,37 @@ function ClientDashboard() {
   useEffect(() => {
     fetchEscrowSummary();
   }, [fetchEscrowSummary, activePage]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const fetchVietnameseBanks = async () => {
+      try {
+        const response = await fetch(VIETQR_BANKS_API);
+        const data = await response.json().catch(() => ({}));
+        const banks = Array.isArray(data?.data) ? data.data : [];
+        const normalizedBanks = banks
+          .map((bank) => ({
+            code: bank.code || bank.bin || bank.shortName,
+            shortName: bank.shortName || bank.code || bank.name,
+            name: bank.name || bank.shortName || bank.code,
+          }))
+          .filter((bank) => bank.code && bank.shortName)
+          .sort((left, right) => left.shortName.localeCompare(right.shortName));
+
+        if (isMounted && normalizedBanks.length > 0) {
+          setBankOptions(normalizedBanks);
+        }
+      } catch (error) {
+        console.error('Failed to fetch Vietnamese banks:', error);
+      }
+    };
+
+    fetchVietnameseBanks();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   useEffect(() => {
     const hasPendingSepay = Boolean(sepayPayment?.paymentCode)
@@ -497,6 +545,11 @@ function ClientDashboard() {
     job.status !== 'closed'
     && job.contractState?.status !== 'Completed'
   ));
+  const filteredBankOptions = bankOptions.filter((bank) => {
+    const keyword = withdrawForm.bankName.toLowerCase().trim();
+    if (!keyword) return true;
+    return `${bank.shortName} ${bank.name} ${bank.code}`.toLowerCase().includes(keyword);
+  });
 
   useEffect(() => {
     if (contractList.length > 0 && !contractList.some((item) => `${item.id}` === `${selectedContractId}`)) {
@@ -1050,6 +1103,76 @@ function ClientDashboard() {
       setWalletStatus({
         type: 'error',
         message: error instanceof Error ? error.message : 'Could not top up balance.',
+      });
+    } finally {
+      setWalletLoading(false);
+    }
+  };
+
+  const handleWithdrawRequest = async () => {
+    const amount = Number(withdrawForm.amount);
+    setWalletStatus({ type: '', message: '' });
+
+    if (!Number.isFinite(amount) || amount <= 0) {
+      setWalletStatus({ type: 'error', message: language === 'vi' ? 'Vui lòng nhập số tiền rút hợp lệ.' : 'Please enter a valid withdrawal amount.' });
+      return;
+    }
+    if (!withdrawForm.bankName.trim() || !withdrawForm.accountNumber.trim() || !withdrawForm.accountName.trim()) {
+      setWalletStatus({ type: 'error', message: language === 'vi' ? 'Vui lòng nhập đầy đủ ngân hàng, số tài khoản và tên chủ tài khoản.' : 'Please enter bank name, account number, and account holder.' });
+      return;
+    }
+
+    const token = localStorage.getItem(TOKEN_KEY);
+    if (!token) {
+      setWalletStatus({ type: 'error', message: language === 'vi' ? 'Vui lòng đăng nhập lại trước khi rút tiền.' : 'Please log in again before withdrawing.' });
+      return;
+    }
+
+    setWalletLoading(true);
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/escrow/withdraw`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          amount,
+          bankName: withdrawForm.bankName.trim(),
+          accountNumber: withdrawForm.accountNumber.trim(),
+          accountName: withdrawForm.accountName.trim(),
+        }),
+      });
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(data.message || (language === 'vi' ? 'Không thể tạo yêu cầu rút tiền.' : 'Could not create withdrawal request.'));
+      }
+
+      const nextBalance = data.summary?.balance ?? availableBalance;
+      setAvailableBalance(nextBalance);
+      if (data.transaction) {
+        setRecentTransactions((current) => [data.transaction, ...current].slice(0, 8));
+      }
+
+      setWithdrawForm({ bankName: '', accountNumber: '', accountName: '', amount: '' });
+      setWalletAmount('');
+      setWithdrawModalOpen(false);
+      setWalletStatus({
+        type: 'success',
+        message: language === 'vi'
+          ? 'Yêu cầu rút tiền đã được tạo và đang chờ admin duyệt.'
+          : 'Withdrawal request created and pending admin approval.',
+      });
+
+      const nextUser = { ...user, balance: nextBalance };
+      setUser(nextUser);
+      persistStoredUser(nextUser);
+    } catch (error) {
+      setWalletStatus({
+        type: 'error',
+        message: error instanceof Error ? error.message : (language === 'vi' ? 'Không thể tạo yêu cầu rút tiền.' : 'Could not create withdrawal request.'),
       });
     } finally {
       setWalletLoading(false);
@@ -1740,23 +1863,107 @@ function ClientDashboard() {
 
   if (activePage === 'escrow') {
     return dashboardLayout(
-      <PaymentCenter
-        mode="client"
-        balance={availableBalance}
-        pendingBalance={pendingBalance}
-        walletAmount={walletAmount}
-        onWalletAmountChange={setWalletAmount}
-        walletLoading={walletLoading}
-        walletStatus={walletStatus}
-        sepayPayment={sepayPayment}
-        recentTransactions={recentTransactions}
-        formatMoney={formatMoney}
-        formatTransactionTime={formatTransactionTime}
-        getTransactionLabel={getTransactionLabel}
-        getTransactionTone={getTransactionTone}
-        onTopUp={topUpBalance}
-        onRelease={releasePayment}
-      />,
+      <>
+        <PaymentCenter
+          mode="client"
+          balance={availableBalance}
+          pendingBalance={pendingBalance}
+          walletAmount={walletAmount}
+          onWalletAmountChange={setWalletAmount}
+          walletLoading={walletLoading}
+          walletStatus={walletStatus}
+          sepayPayment={sepayPayment}
+          recentTransactions={recentTransactions}
+          formatMoney={formatMoney}
+          formatTransactionTime={formatTransactionTime}
+          getTransactionLabel={getTransactionLabel}
+          getTransactionTone={getTransactionTone}
+          onTopUp={topUpBalance}
+          onRelease={releasePayment}
+          onWithdraw={() => setWithdrawModalOpen(true)}
+        />
+        {withdrawModalOpen ? (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 px-4 py-6 backdrop-blur-sm">
+            <div className="w-full max-w-xl overflow-hidden rounded-[28px] bg-white shadow-[0_30px_90px_rgba(15,23,42,0.35)]">
+              <div className="flex items-center justify-between border-b border-slate-100 px-6 py-5">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-600">Withdraw</p>
+                  <h3 className="mt-2 text-2xl font-bold text-slate-950">{language === 'vi' ? 'Tạo yêu cầu rút tiền' : 'Create withdrawal request'}</h3>
+                </div>
+                <button type="button" onClick={() => setWithdrawModalOpen(false)} className="rounded-xl border border-slate-200 p-2 text-slate-500 transition hover:bg-slate-50"><X className="h-4 w-4" /></button>
+              </div>
+              <div className="space-y-4 px-6 py-5">
+                <label className="block">
+                  <p className="mb-2 text-sm font-semibold text-slate-700">{language === 'vi' ? 'Ngân hàng' : 'Bank name'}</p>
+                  <div className="relative">
+                    <input
+                      value={withdrawForm.bankName}
+                      onFocus={() => setBankDropdownOpen(true)}
+                      onChange={(event) => {
+                        setWithdrawForm((current) => ({ ...current, bankName: event.target.value }));
+                        setBankDropdownOpen(true);
+                      }}
+                      className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 pr-11 text-sm text-slate-900 outline-none transition focus:border-emerald-400"
+                      placeholder={language === 'vi' ? 'Chọn hoặc nhập ngân hàng' : 'Select or type a bank'}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setBankDropdownOpen((current) => !current)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500"
+                    >
+                      ▾
+                    </button>
+                    {bankDropdownOpen ? (
+                      <div className="absolute left-0 right-0 top-[calc(100%+0.5rem)] z-[70] max-h-64 overflow-y-auto rounded-2xl border border-slate-200 bg-white p-2 shadow-[0_18px_50px_rgba(15,23,42,0.18)]">
+                        {filteredBankOptions.length > 0 ? filteredBankOptions.map((bank) => {
+                          const value = `${bank.shortName} - ${bank.name}`;
+                          return (
+                            <button
+                              key={`${bank.code}-${bank.shortName}`}
+                              type="button"
+                              onClick={() => {
+                                setWithdrawForm((current) => ({ ...current, bankName: value }));
+                                setBankDropdownOpen(false);
+                              }}
+                              className="block w-full rounded-xl px-3 py-2 text-left text-sm text-slate-700 transition hover:bg-emerald-50 hover:text-emerald-700"
+                            >
+                              <span className="font-semibold">{bank.shortName}</span>
+                              <span className="text-slate-500"> - {bank.name}</span>
+                            </button>
+                          );
+                        }) : (
+                          <div className="px-3 py-3 text-sm text-slate-500">
+                            {language === 'vi' ? 'Không tìm thấy ngân hàng.' : 'No banks found.'}
+                          </div>
+                        )}
+                      </div>
+                    ) : null}
+                  </div>
+                </label>
+                {[
+                  ['accountNumber', language === 'vi' ? 'Số tài khoản' : 'Account number'],
+                  ['accountName', language === 'vi' ? 'Tên chủ tài khoản' : 'Account holder'],
+                  ['amount', language === 'vi' ? 'Số tiền rút' : 'Withdrawal amount'],
+                ].map(([field, label]) => (
+                  <label key={field} className="block">
+                    <p className="mb-2 text-sm font-semibold text-slate-700">{label}</p>
+                    <input
+                      value={withdrawForm[field]}
+                      onChange={(event) => setWithdrawForm((current) => ({ ...current, [field]: event.target.value }))}
+                      className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-emerald-400"
+                      placeholder={label}
+                    />
+                  </label>
+                ))}
+              </div>
+              <div className="flex flex-wrap justify-end gap-3 border-t border-slate-100 px-6 py-4">
+                <button type="button" onClick={() => setWithdrawModalOpen(false)} className="rounded-2xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50">{language === 'vi' ? 'Hủy' : 'Cancel'}</button>
+                <button type="button" onClick={handleWithdrawRequest} disabled={walletLoading} className="rounded-2xl bg-amber-500 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-60">{language === 'vi' ? 'Gửi yêu cầu rút tiền' : 'Submit withdrawal request'}</button>
+              </div>
+            </div>
+          </div>
+        ) : null}
+      </>,
     );
 
     return dashboardLayout(
