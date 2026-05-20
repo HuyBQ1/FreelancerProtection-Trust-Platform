@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import {
+  cancelAdminContract,
   deleteAdminReview,
   getAdminOverview,
   updateAdminReviewStatus,
@@ -17,6 +18,8 @@ router.use(protect);
 router.get('/overview', asyncHandler(getAdminOverview));
 router.patch('/users/:role/:userId/moderation', asyncHandler(updateUserModeration));
 router.patch('/jobs/:jobId/moderation', asyncHandler(updateJobModeration));
+router.patch('/jobs/:jobId/cancel', asyncHandler(cancelAdminContract));
+router.post('/jobs/:jobId/cancel', asyncHandler(cancelAdminContract));
 router.patch('/transactions/:transactionId/status', asyncHandler(updateTransactionStatus));
 router.patch('/reviews/:reviewId/status', asyncHandler(updateAdminReviewStatus));
 router.delete('/reviews/:reviewId', asyncHandler(deleteAdminReview));

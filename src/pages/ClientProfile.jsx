@@ -1,4 +1,4 @@
-﻿import { ArrowLeft, BadgeCheck, BriefcaseBusiness, Building2, CheckCircle2, Mail, Shield, Star, WalletCards } from 'lucide-react';
+﻿import { ArrowLeft, BadgeCheck, BriefcaseBusiness, Building2, CheckCircle2, Mail, Shield, Star } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import SectionCard from '../components/SectionCard';
@@ -25,6 +25,9 @@ function ClientProfile() {
   const { profileId } = useParams();
   const [user, setUser] = useState(readStoredUser);
   const [availableBalance, setAvailableBalance] = useState(user?.balance || 0);
+  const [postedJobsCount, setPostedJobsCount] = useState(0);
+  const [completedContractsCount, setCompletedContractsCount] = useState(0);
+  const [successRate, setSuccessRate] = useState(0);
   const language = user?.settings?.language || 'en';
   const isVietnamese = language === 'vi';
   const seed = location.state?.profileSeed || {};
@@ -114,6 +117,48 @@ function ClientProfile() {
     };
   }, []);
 
+  useEffect(() => {
+    let isMounted = true;
+
+    const fetchClientJobStats = async () => {
+      try {
+        const token = localStorage.getItem(TOKEN_KEY);
+        if (!token) return;
+
+        const response = await fetch(`${API_BASE_URL}/jobs/mine`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || !isMounted) return;
+
+        const jobs = Array.isArray(data.jobs) ? data.jobs : [];
+        const evaluatedContracts = jobs.filter((job) => (
+          ['assigned', 'closed'].includes(job.status)
+          || job.contractState
+          || (Array.isArray(job.proposals) && job.proposals.some((proposal) => `${proposal.status || ''}`.toLowerCase() === 'declined'))
+        ));
+        const successfulContracts = evaluatedContracts.filter((job) => (
+          job.status === 'closed'
+          || job.contractState?.status === 'Completed'
+          || (Array.isArray(job.contractState?.milestones)
+            && job.contractState.milestones.length > 0
+            && job.contractState.milestones.every((milestone) => milestone.status === 'Approved'))
+        ));
+
+        setPostedJobsCount(jobs.length);
+        setCompletedContractsCount(successfulContracts.length);
+        setSuccessRate(evaluatedContracts.length > 0 ? Math.round((successfulContracts.length / evaluatedContracts.length) * 100) : 0);
+      } catch (error) {
+        console.error('Failed to fetch client profile job stats:', error);
+      }
+    };
+
+    fetchClientJobStats();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
   return (
     <div className="min-h-screen bg-slate-100/80">
       <div className="mx-auto flex w-full gap-4 px-3 py-4 sm:gap-5 sm:px-5 xl:gap-6 xl:px-6">
@@ -173,11 +218,11 @@ function ClientProfile() {
                 <div className="mt-8 grid gap-4 sm:grid-cols-2 2xl:grid-cols-4">
                   <div className="rounded-3xl border border-white/10 bg-white/5 p-4">
                     <p className="text-sm text-white/60">{isVietnamese ? 'Công việc đã đăng' : 'Posted jobs'}</p>
-                    <p className="mt-2 text-2xl font-bold">{user?.postedJobs || 0}</p>
+                    <p className="mt-2 text-2xl font-bold">{postedJobsCount}</p>
                   </div>
                   <div className="rounded-3xl border border-white/10 bg-white/5 p-4">
-                    <p className="text-sm text-white/60">{isVietnamese ? 'Hợp đồng hoạt động' : 'Active contracts'}</p>
-                    <p className="mt-2 text-2xl font-bold">{user?.activeContracts || 0}</p>
+                    <p className="text-sm text-white/60">{isVietnamese ? 'Hợp đồng đã hoàn thành' : 'Completed contracts'}</p>
+                    <p className="mt-2 text-2xl font-bold">{completedContractsCount}</p>
                   </div>
                   <div className="rounded-3xl border border-white/10 bg-white/5 p-4">
                     <p className="text-sm text-white/60">{isVietnamese ? 'Thanh toán' : 'Payments'}</p>
@@ -207,16 +252,16 @@ function ClientProfile() {
                     </p>
                   </div>
                   <div className="rounded-3xl border border-slate-200 bg-white p-5">
-                    <p className="text-sm text-slate-500">{isVietnamese ? 'Tài khoản ngân hàng' : 'Bank account'}</p>
+                    <p className="text-sm text-slate-500">{isVietnamese ? 'Tỉ lệ thành công' : 'Success rate'}</p>
                     <p className="mt-2 flex flex-wrap items-center gap-2 break-words text-lg font-semibold text-ink">
-                      <WalletCards className="h-5 w-5 text-pine" />
-                      {bankAccount.bankName || (isVietnamese ? 'Chưa thiết lập' : 'Not set')}
+                      <Shield className="h-5 w-5 text-pine" />
+                      {successRate}%
                     </p>
                   </div>
                   <div className="rounded-3xl border border-slate-200 bg-white p-5">
                     <p className="text-sm text-slate-500">{isVietnamese ? 'Tín hiệu tin cậy' : 'Trust signal'}</p>
                     <p className="mt-2 flex flex-wrap items-center gap-2 break-words text-lg font-semibold text-ink">
-                      <Shield className="h-5 w-5 text-pine" />
+                      <CheckCircle2 className="h-5 w-5 text-pine" />
                       {isVietnamese ? 'Đã xác thực tài khoản' : 'Account verified'}
                     </p>
                   </div>

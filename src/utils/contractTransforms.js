@@ -124,15 +124,11 @@ export function normalizeContractForView(contract, fallbackIndex = 0) {
     ? contract.milestones.map((milestone, index) => normalizeMilestone(milestone, index))
     : [];
 
-  const completedMilestones = Number.isFinite(contract?.completedMilestones)
-    ? contract.completedMilestones
-    : milestones.filter((milestone) => ['Approved', 'Completed'].includes(milestone.status)).length;
+  const completedMilestones = milestones.filter((milestone) => milestone.status === 'Approved').length;
   const totalMilestones = Number.isFinite(contract?.totalMilestones)
     ? contract.totalMilestones
     : milestones.length;
-  const progress = Number.isFinite(contract?.progress)
-    ? contract.progress
-    : (totalMilestones > 0 ? Math.round((completedMilestones / totalMilestones) * 100) : 0);
+  const progress = totalMilestones > 0 ? Math.round((completedMilestones / totalMilestones) * 100) : 0;
   const status = `${contract?.status || (milestones.every((milestone) => milestone.status === 'Approved') ? 'Completed' : 'Active')}`.trim() || 'Active';
 
   return {
@@ -170,6 +166,10 @@ export function createContractFromAcceptedJob(job) {
   const milestones = Array.isArray(contractState.milestones) && contractState.milestones.length > 0
     ? contractState.milestones
     : buildDefaultMilestones(job);
+  const freelancerProposalStatus = job.freelancerProposalStatus || 'pending';
+  const derivedStatus = freelancerProposalStatus === 'declined'
+    ? 'Declined'
+    : (contractState.status || 'Active');
 
   return normalizeContractForView({
     id: `job-contract-${job.id}`,
@@ -195,9 +195,10 @@ export function createContractFromAcceptedJob(job) {
     progress: contractState.progress ?? 0,
     completedMilestones: contractState.completedMilestones ?? 0,
     totalMilestones: contractState.totalMilestones ?? milestones.length,
-    status: contractState.status || 'Active',
+    status: derivedStatus,
     onlineContract: job.onlineContract || null,
     source: 'job-acceptance',
     milestones,
+    freelancerProposalStatus,
   });
 }

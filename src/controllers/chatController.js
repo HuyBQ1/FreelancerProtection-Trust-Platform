@@ -184,13 +184,6 @@ export async function createThread(req, res) {
     return;
   }
 
-  const starterText = req.user.role === 'client'
-    ? 'Hello, I would like to discuss a potential project with you.'
-    : 'Hello, thank you for your interest. I am ready to discuss the project details.';
-  const replyText = req.user.role === 'client'
-    ? 'Thanks for reaching out. I am available to review the project scope and next steps.'
-    : 'Thanks for sharing the project. I would like to understand the goals, timeline, and milestone plan.';
-
   const thread = await ChatThread.create({
     contract: typeof contract === 'string' && contract.trim() ? contract.trim() : 'General discussion',
     jobId: validJobId || null,
@@ -207,23 +200,10 @@ export async function createThread(req, res) {
         role: counterparty.role,
         name: counterparty.fullName || counterparty.email,
         email: counterparty.email,
-        unreadCount: 1,
+        unreadCount: 0,
       },
     ],
-    messages: [
-      {
-        senderId: req.user._id,
-        senderRole: req.user.role,
-        senderName: req.user.fullName || req.user.email,
-        text: starterText,
-      },
-      {
-        senderId: counterparty._id,
-        senderRole: counterparty.role,
-        senderName: counterparty.fullName || counterparty.email,
-        text: replyText,
-      },
-    ],
+    messages: [],
   });
 
   emitToUser(req.user, 'chat:thread-updated', { thread: serializeThread(thread, req.user) });
@@ -266,6 +246,29 @@ export async function markThreadRead(req, res) {
   res.status(200).json({
     message: 'Chat thread marked as read',
     thread: serializeThread(thread, req.user),
+  });
+}
+
+export async function deleteThread(req, res) {
+  const thread = await ensureMembership(req.params.threadId, req.user);
+  const threadId = thread._id.toString();
+  const recipients = thread.participants.filter((participant) => !(
+    String(participant.userId) === String(req.user._id) && participant.role === req.user.role
+  ));
+
+  await ChatThread.findByIdAndDelete(thread._id);
+
+  recipients.forEach((participant) => {
+    emitToUser(
+      { _id: participant.userId, role: participant.role },
+      'chat:thread-removed',
+      { threadId },
+    );
+  });
+
+  res.status(200).json({
+    message: 'Chat thread deleted successfully',
+    threadId,
   });
 }
 

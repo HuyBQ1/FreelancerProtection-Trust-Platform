@@ -115,7 +115,6 @@ function PaymentCenter({
         { label: isVietnamese ? 'Rút tiền' : 'Withdraw Funds', icon: ArrowDownLeft, onClick: onWithdraw, tone: 'secondary' },
       ]
     : [
-        { label: isVietnamese ? 'Nạp tiền' : 'Top Up', icon: Wallet, onClick: onTopUp, tone: 'primary' },
         { label: isVietnamese ? 'Rút tiền' : 'Withdraw Funds', icon: ArrowDownLeft, onClick: onWithdraw, tone: 'secondary' },
       ];
 
@@ -151,7 +150,7 @@ function PaymentCenter({
                       className="mt-3 w-full rounded-2xl border border-white/10 bg-white/10 px-4 py-3.5 text-sm text-white outline-none placeholder:text-white/40 focus:border-white/25"
                       placeholder={isVietnamese ? 'Nhập số tiền, ví dụ 500000' : 'Enter amount, for example 500000'}
                     />
-                  <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                  <div className={`mt-4 grid gap-3 ${primaryActions.length > 1 ? 'sm:grid-cols-2' : 'sm:grid-cols-1'}`}>
                     {primaryActions.map((action) => (
                       <button
                         key={action.label}

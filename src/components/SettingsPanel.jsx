@@ -265,8 +265,44 @@ function SettingsPanel({ user, onUserChange, initialSection = 'profile', mode = 
   const [activeSection, setActiveSection] = useState(initialSection);
   const [cvDirty, setCvDirty] = useState(false);
 
+  const mergeCvIntoUser = (baseUser, cvData) => ({
+    ...baseUser,
+    settings: {
+      ...baseUser?.settings,
+      freelancerProfile: {
+        ...baseUser?.settings?.freelancerProfile,
+        cvFileName: cvData?.cvFileName || baseUser?.settings?.freelancerProfile?.cvFileName || '',
+        cvFileType: cvData?.cvFileType || baseUser?.settings?.freelancerProfile?.cvFileType || '',
+        cvDataUrl: cvData?.cvDataUrl || baseUser?.settings?.freelancerProfile?.cvDataUrl || '',
+      },
+    },
+  });
+
+  const fetchCvFromServer = async (userId, token) => {
+    if (!userId || !token) return null;
+
+    const response = await fetch(`${API_BASE_URL}/users/cv/freelancer/${userId}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const data = await response.json().catch(() => ({}));
+
+    if (!response.ok || !data.cvDataUrl) {
+      return null;
+    }
+
+    return data;
+  };
+
   useEffect(() => {
-    setForm(buildDefaultForm(user));
+    setForm((current) => {
+      const nextForm = buildDefaultForm(user);
+      return {
+        ...nextForm,
+        cvFileName: nextForm.cvFileName || current?.cvFileName || '',
+        cvFileType: nextForm.cvFileType || current?.cvFileType || '',
+        cvDataUrl: nextForm.cvDataUrl || current?.cvDataUrl || '',
+      };
+    });
     setAvatarPreview(user?.avatar || '');
   }, [user]);
 
@@ -291,9 +327,17 @@ function SettingsPanel({ user, onUserChange, initialSection = 'profile', mode = 
         const data = await response.json().catch(() => ({}));
         if (!response.ok || !data.user || !isMounted) return;
 
-        persistUser(data.user);
-        setForm(buildDefaultForm(data.user));
-        setAvatarPreview(data.user.avatar || '');
+        const syncedUserId = data.user?.id || data.user?._id;
+        const cvData = data.user?.role === 'freelancer'
+          ? await fetchCvFromServer(syncedUserId, token)
+          : null;
+        const syncedUser = cvData ? mergeCvIntoUser(data.user, cvData) : data.user;
+
+        if (!isMounted) return;
+
+        persistUser(syncedUser);
+        setForm(buildDefaultForm(syncedUser));
+        setAvatarPreview(syncedUser.avatar || '');
       } catch {
         // Keep the current local snapshot when the profile sync cannot be reached.
       }
@@ -305,6 +349,37 @@ function SettingsPanel({ user, onUserChange, initialSection = 'profile', mode = 
       isMounted = false;
     };
   }, []);
+
+  useEffect(() => {
+    const token = localStorage.getItem(TOKEN_KEY);
+    const userId = user?.id || user?._id;
+
+    if (!token || !userId || user?.role !== 'freelancer') return;
+
+    let isMounted = true;
+
+    const syncCv = async () => {
+      try {
+        const data = await fetchCvFromServer(userId, token);
+
+        if (!data?.cvDataUrl || !isMounted) return;
+
+        setForm((current) => ({
+          ...current,
+          cvFileName: data.cvFileName || current.cvFileName,
+          cvFileType: data.cvFileType || current.cvFileType,
+          cvDataUrl: data.cvDataUrl,
+        }));
+      } catch {
+        // Ignore CV sync errors to avoid blocking settings screen.
+      }
+    };
+
+    syncCv();
+    return () => {
+      isMounted = false;
+    };
+  }, [user?.id, user?._id, user?.role]);
 
 
   const safeForm = form || buildDefaultForm(user || {});
@@ -500,17 +575,11 @@ function SettingsPanel({ user, onUserChange, initialSection = 'profile', mode = 
               companyName: form.companyName,
               companyWebsite: form.companyWebsite,
               billingEmail: form.billingEmail,
-              cvFileName: form.cvFileName,
-              cvFileType: form.cvFileType,
-              cvDataUrl: form.cvDataUrl,
             }
             : {
               headline: form.headline,
               portfolioUrl: form.portfolioUrl,
               skills: form.skills.split(',').map((item) => item.trim()).filter(Boolean),
-              cvFileName: form.cvFileName,
-              cvFileType: form.cvFileType,
-              cvDataUrl: form.cvDataUrl,
             },
           bankAccount: {
             bankName: form.bankName,
@@ -527,9 +596,18 @@ function SettingsPanel({ user, onUserChange, initialSection = 'profile', mode = 
         throw new Error(settingsData.message || 'Could not update settings.');
       }
 
-      const mergedUser = settingsData.user || latestUser;
+      const cvSnapshot = {
+        cvFileName: latestUser?.settings?.freelancerProfile?.cvFileName || form.cvFileName,
+        cvFileType: latestUser?.settings?.freelancerProfile?.cvFileType || form.cvFileType,
+        cvDataUrl: latestUser?.settings?.freelancerProfile?.cvDataUrl || form.cvDataUrl,
+      };
+      const mergedUser = user?.role === 'freelancer'
+        ? mergeCvIntoUser(settingsData.user || latestUser, cvSnapshot)
+        : (settingsData.user || latestUser);
+      const mergedForm = buildDefaultForm(mergedUser);
+
       persistUser(mergedUser);
-      setForm(buildDefaultForm(mergedUser));
+      setForm(mergedForm);
       setAvatarPreview(mergedUser?.avatar || avatarPreview);
       setCvDirty(false);
       setStatus({

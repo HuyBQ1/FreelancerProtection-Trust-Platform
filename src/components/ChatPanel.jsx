@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowUpRight, CheckCircle2, DollarSign, MessageSquarePlus, Paperclip, PencilLine, Search, SendHorizonal } from 'lucide-react';
+import { ArrowUpRight, CheckCircle2, DollarSign, Paperclip, PencilLine, Search, SendHorizonal, Trash2, X } from 'lucide-react';
 import { io } from 'socket.io-client';
 import { useNavigate } from 'react-router-dom';
 import SectionCard from './SectionCard';
@@ -31,7 +31,6 @@ function ChatPanel({ currentUser, userName, initialThreadId = '', onDealUpdated 
   const [draft, setDraft] = useState('');
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
-  const [creatingThread, setCreatingThread] = useState(false);
   const [sending, setSending] = useState(false);
   const [dealAmount, setDealAmount] = useState('');
   const [dealMilestoneIndex, setDealMilestoneIndex] = useState('');
@@ -41,6 +40,9 @@ function ChatPanel({ currentUser, userName, initialThreadId = '', onDealUpdated 
   const [dealJobs, setDealJobs] = useState([]);
   const [relatedJobDetails, setRelatedJobDetails] = useState(null);
   const [status, setStatus] = useState({ type: '', message: '' });
+  const [deleteMode, setDeleteMode] = useState(false);
+  const [selectedThreadIds, setSelectedThreadIds] = useState([]);
+  const [deletingThreads, setDeletingThreads] = useState(false);
 
   const token = localStorage.getItem(TOKEN_KEY);
 
@@ -124,6 +126,12 @@ function ChatPanel({ currentUser, userName, initialThreadId = '', onDealUpdated 
     if (select) {
       setSelectedThreadId(nextThread.id);
     }
+  };
+
+  const removeThread = (threadId) => {
+    setThreads((current) => current.filter((thread) => thread.id !== threadId));
+    setSelectedThreadIds((current) => current.filter((id) => id !== threadId));
+    setSelectedThreadId((current) => (current === threadId ? '' : current));
   };
 
   const fetchThreads = async ({ silent = false } = {}) => {
@@ -270,6 +278,10 @@ function ChatPanel({ currentUser, userName, initialThreadId = '', onDealUpdated 
       if (!thread) return;
       upsertThread(thread);
     });
+    socket.on('chat:thread-removed', ({ threadId }) => {
+      if (!threadId) return;
+      removeThread(threadId);
+    });
 
     socket.on('connect_error', () => {
       setStatus((current) => (
@@ -287,38 +299,48 @@ function ChatPanel({ currentUser, userName, initialThreadId = '', onDealUpdated 
     };
   }, [token]);
 
-  const handleCreateThread = async () => {
-    if (!token) return;
+  const toggleDeleteMode = () => {
+    setDeleteMode((current) => !current);
+    setSelectedThreadIds([]);
+  };
 
-    setCreatingThread(true);
+  const toggleThreadSelection = (threadId) => {
+    setSelectedThreadIds((current) => (
+      current.includes(threadId)
+        ? current.filter((id) => id !== threadId)
+        : [...current, threadId]
+    ));
+  };
+
+  const handleDeleteSelectedThreads = async () => {
+    if (!token || deletingThreads || selectedThreadIds.length === 0) return;
+
+    setDeletingThreads(true);
     setStatus({ type: '', message: '' });
 
     try {
-      const response = await fetch(THREADS_URL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({}),
-      });
+      await Promise.all(selectedThreadIds.map(async (threadId) => {
+        const response = await fetch(`${THREADS_URL}/${threadId}`, {
+          method: 'DELETE',
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          throw new Error(data.message || (isVietnamese ? 'Không thể xóa cuộc trò chuyện.' : 'Could not delete chat thread.'));
+        }
+        removeThread(threadId);
+      }));
 
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        throw new Error(data.message || (isVietnamese ? 'Không thể tạo cuộc trò chuyện.' : 'Could not create a chat thread.'));
-      }
-
-      if (data.thread) {
-        upsertThread(data.thread, { select: true });
-        setStatus({ type: 'success', message: 'Successfully.' });
-      }
+      setDeleteMode(false);
+      setSelectedThreadIds([]);
+      setStatus({ type: 'success', message: isVietnamese ? 'Đã xóa cuộc trò chuyện đã chọn.' : 'Selected conversations deleted.' });
     } catch (error) {
       setStatus({
         type: 'error',
-        message: error instanceof Error ? error.message : (isVietnamese ? 'Không thể tạo cuộc trò chuyện.' : 'Could not create a chat thread.'),
+        message: error instanceof Error ? error.message : (isVietnamese ? 'Không thể xóa cuộc trò chuyện.' : 'Could not delete chat thread.'),
       });
     } finally {
-      setCreatingThread(false);
+      setDeletingThreads(false);
     }
   };
 
@@ -502,15 +524,29 @@ function ChatPanel({ currentUser, userName, initialThreadId = '', onDealUpdated 
           />
         </label>
 
-        <button
-          type="button"
-          onClick={handleCreateThread}
-          disabled={creatingThread}
-          className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-ink px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          <MessageSquarePlus className="h-4 w-4" />
-          {creatingThread ? (isVietnamese ? 'Đang tạo...' : 'Creating...') : (isVietnamese ? 'Bắt đầu trò chuyện' : 'Start conversation')}
-        </button>
+        <div className="mt-4 flex items-center gap-2">
+          <button
+            type="button"
+            onClick={toggleDeleteMode}
+            className={`inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-semibold transition ${deleteMode ? 'border-rose-300 bg-rose-50 text-rose-700' : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-100'}`}
+          >
+            {deleteMode ? <X className="h-4 w-4" /> : <Trash2 className="h-4 w-4" />}
+            {deleteMode ? (isVietnamese ? 'Thoát chọn xóa' : 'Exit delete mode') : (isVietnamese ? 'Chọn để xóa' : 'Select to delete')}
+          </button>
+          {deleteMode ? (
+            <button
+              type="button"
+              onClick={handleDeleteSelectedThreads}
+              disabled={deletingThreads || selectedThreadIds.length === 0}
+              className="inline-flex items-center gap-2 rounded-xl bg-rose-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <Trash2 className="h-4 w-4" />
+              {deletingThreads
+                ? (isVietnamese ? 'Đang xóa...' : 'Deleting...')
+                : (isVietnamese ? `Xóa (${selectedThreadIds.length})` : `Delete (${selectedThreadIds.length})`)}
+            </button>
+          ) : null}
+        </div>
 
         {status.message ? (
           <p className={`mt-4 rounded-2xl px-4 py-3 text-sm ${status.type === 'error' ? 'bg-rose-50 text-rose-700' : 'bg-emerald-50 text-emerald-700'}`}>
@@ -522,11 +558,21 @@ function ChatPanel({ currentUser, userName, initialThreadId = '', onDealUpdated 
           {visibleThreads.map((thread) => (
             <button
               key={thread.id}
-              onClick={() => setSelectedThreadId(thread.id)}
+              onClick={() => {
+                if (deleteMode) {
+                  toggleThreadSelection(thread.id);
+                  return;
+                }
+                setSelectedThreadId(thread.id);
+              }}
               className={`w-full rounded-2xl border p-4 text-left transition ${
-                thread.id === selectedThread?.id
-                  ? 'border-indigo-500 bg-indigo-50/60'
-                  : 'border-slate-200 bg-white hover:border-slate-300'
+                deleteMode
+                  ? (selectedThreadIds.includes(thread.id)
+                    ? 'border-rose-400 bg-rose-50/70'
+                    : 'border-slate-200 bg-white hover:border-slate-300')
+                  : thread.id === selectedThread?.id
+                    ? 'border-indigo-500 bg-indigo-50/60'
+                    : 'border-slate-200 bg-white hover:border-slate-300'
               }`}
             >
               <div className="flex items-start justify-between gap-3">
@@ -541,7 +587,11 @@ function ChatPanel({ currentUser, userName, initialThreadId = '', onDealUpdated 
                 <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
                   {thread.participantRole}
                 </span>
-                {thread.unread ? (
+                {deleteMode ? (
+                  <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${selectedThreadIds.includes(thread.id) ? 'bg-rose-600 text-white' : 'bg-slate-200 text-slate-600'}`}>
+                    {selectedThreadIds.includes(thread.id) ? (isVietnamese ? 'Đã chọn' : 'Selected') : (isVietnamese ? 'Chọn' : 'Select')}
+                  </span>
+                ) : thread.unread ? (
                   <span className="rounded-full bg-coral px-2.5 py-1 text-xs font-semibold text-white">
                     {thread.unread}
                   </span>
@@ -552,7 +602,7 @@ function ChatPanel({ currentUser, userName, initialThreadId = '', onDealUpdated 
 
           {visibleThreads.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-5 text-sm text-slate-500">
-              {isVietnamese ? 'Chưa có cuộc trò chuyện nào. Hãy bấm `Bắt đầu trò chuyện` để tạo cuộc trò chuyện đầu tiên.' : 'No conversations yet. Click `Start conversation` to create your first chat thread.'}
+              {isVietnamese ? 'Chưa có cuộc trò chuyện nào.' : 'No conversations yet.'}
             </div>
           ) : null}
         </div>
@@ -804,17 +854,8 @@ function ChatPanel({ currentUser, userName, initialThreadId = '', onDealUpdated 
             <p className="muted">Direct chat</p>
             <h2 className="mt-2 text-2xl font-bold text-ink">No conversation selected yet</h2>
             <p className="mt-3 max-w-md text-sm leading-7 text-slate-500">
-              {isVietnamese ? 'Hãy bắt đầu một cuộc trò chuyện để tạo luồng chat đầu tiên giữa khách hàng và freelancer trong MongoDB.' : 'Start a conversation to create the first client and freelancer chat thread in MongoDB.'}
+              {isVietnamese ? 'Chọn một cuộc trò chuyện trong danh sách bên trái để xem tin nhắn.' : 'Select a conversation from the list on the left to view messages.'}
             </p>
-            <button
-              type="button"
-              onClick={handleCreateThread}
-              disabled={creatingThread}
-              className="mt-6 inline-flex items-center gap-2 rounded-2xl bg-ink px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              <MessageSquarePlus className="h-4 w-4" />
-              {creatingThread ? (isVietnamese ? 'Đang tạo...' : 'Creating...') : (isVietnamese ? 'Bắt đầu trò chuyện' : 'Start conversation')}
-            </button>
           </div>
         )}
       </SectionCard>

@@ -150,6 +150,7 @@ function AddJob() {
   const [jobStatus, setJobStatus] = useState({ type: '', message: '' });
   const [jobForm, setJobForm] = useState(defaultJobForm);
   const [extendedTimelineDays, setExtendedTimelineDays] = useState('');
+  const [availableBalance, setAvailableBalance] = useState(user?.balance || 0);
   const language = user?.settings?.language || 'en';
   const localizedLabels = {
     Dashboard: language === 'vi' ? 'T\u1ed5ng quan' : labels.Dashboard,
@@ -284,6 +285,40 @@ function AddJob() {
     };
     fetchJobForEdit();
   }, [isEditMode, jobId, navigate]);
+  useEffect(() => {
+    let isMounted = true;
+
+    const fetchLatestBalance = async () => {
+      try {
+        const token = localStorage.getItem(TOKEN_KEY);
+        if (!token) return;
+
+        const response = await fetch(`${API_BASE_URL}/escrow/summary`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const data = await response.json().catch(() => ({}));
+        const nextBalance = data.summary?.balance;
+
+        if (!response.ok || nextBalance === undefined || !isMounted) {
+          return;
+        }
+
+        setAvailableBalance(nextBalance);
+        setUser((currentUser) => {
+          const nextUser = { ...currentUser, balance: nextBalance };
+          localStorage.setItem('fptp_user', JSON.stringify(nextUser));
+          return nextUser;
+        });
+      } catch (error) {
+        console.error('Failed to fetch add-job balance:', error);
+      }
+    };
+
+    fetchLatestBalance();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
   const handleLanguageChange = (language) => {
     persistLanguage(language);
     const nextUser = {
@@ -314,6 +349,15 @@ function AddJob() {
     const parsedBudget = moneyToNumber(jobForm.budget);
     if (parsedBudget <= 0) {
       setJobStatus({ type: 'error', message: language === 'vi' ? 'Ngân sách phải là số lớn hơn 0.' : 'Budget must be a number greater than 0.' });
+      return;
+    }
+    if (!isEditMode && parsedBudget > Number(availableBalance || 0)) {
+      setJobStatus({
+        type: 'error',
+        message: language === 'vi'
+          ? 'Số dư khả dụng không đủ để đăng công việc này.'
+          : 'Available balance is not enough to create this job.',
+      });
       return;
     }
     const normalizedMilestone = jobForm.milestones
@@ -411,7 +455,7 @@ function AddJob() {
   return (
     <div className="min-h-screen bg-slate-100/80">
       <div className="flex w-full gap-6 px-4 py-4 sm:px-6 xl:px-8">
-        <Sidebar items={sidebarItems} activePage="marketplace" onNavigate={routeToClientDashboard} labels={localizedLabels} />
+        <Sidebar items={sidebarItems} activePage="marketplace" onNavigate={routeToClientDashboard} labels={localizedLabels} balanceValue={formatMoney(availableBalance)} />
         <div className="min-w-0 flex-1 space-y-6">
             <Topbar
               title={user?.settings?.language === 'vi' ? (isEditMode ? 'Chỉnh sửa công việc' : 'Thêm công việc') : (isEditMode ? 'Edit Job' : 'Add Job')}

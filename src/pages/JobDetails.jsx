@@ -709,29 +709,41 @@ function JobDetails() {
                                     className="h-2 w-full cursor-pointer accent-pine"
                                   />
                                   <div className="mt-2 flex justify-between text-xs font-semibold text-slate-400">
-                                    <span>{isVietnamese ? '1 ng?y' : '1 day'}</span>
-                                    <span>{isVietnamese ? '90 ng?y' : '90 days'}</span>
+                                    <span>{isVietnamese ? '1 ngày' : '1 day'}</span>
+                                    <span>{isVietnamese ? '90 ngày' : '90 days'}</span>
                                   </div>
                                 </div>
                               </label>
 
                               <label className="space-y-2">
                                 <span className="text-sm font-semibold text-ink">{isVietnamese ? 'L\u1eddi nh\u1eafn \u0111\u1ec1 xu\u1ea5t' : 'Proposal note'}</span>
-                                <textarea value={proposalForm.coverLetter} onChange={(event) => setProposalForm((current) => ({ ...current, coverLetter: event.target.value }))} rows={4} placeholder={isVietnamese ? 'T?m t?t c?ch b?n s? l?m, kinh nghi?m li?n quan v? m?c b?n giao.' : 'Outline your approach, relevant experience, and delivery plan.'} className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm leading-6 outline-none transition focus:border-pine" />
+                                <textarea value={proposalForm.coverLetter} onChange={(event) => setProposalForm((current) => ({ ...current, coverLetter: event.target.value }))} rows={4} placeholder={isVietnamese ? 'Tóm tắt cách bạn sẽ làm, kinh nghiệm liên quan và mốc bàn giao.' : 'Outline your approach, relevant experience, and delivery plan.'} className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm leading-6 outline-none transition focus:border-pine" />
                               </label>
 
-                              <button type="submit" disabled={proposalSubmitting} className="inline-flex w-full items-center justify-center rounded-xl border border-slate-300 bg-white px-5 py-3 text-base font-bold text-ink transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60">
-                                {proposalSubmitting
-                                  ? (isVietnamese ? '\u0110ang g\u1eedi...' : 'Sending...')
-                                  : (myProposal
-                                    ? (isVietnamese ? 'C\u1eadp nh\u1eadt ch\u00e0o gi\u00e1' : 'Update bid')
-                                    : (isVietnamese ? 'Ch\u00e0o gi\u00e1 d\u1ef1 \u00e1n' : 'Bid on the project'))}
-                              </button>
+                              <div className="grid gap-3 sm:grid-cols-2">
+                                <button type="submit" disabled={proposalSubmitting} className="inline-flex w-full items-center justify-center rounded-xl border border-slate-300 bg-white px-5 py-3 text-base font-bold text-ink transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60">
+                                  {proposalSubmitting
+                                    ? (isVietnamese ? '\u0110ang g\u1eedi...' : 'Sending...')
+                                    : (myProposal
+                                      ? (isVietnamese ? 'C\u1eadp nh\u1eadt ch\u00e0o gi\u00e1' : 'Update bid')
+                                      : (isVietnamese ? 'Ch\u00e0o gi\u00e1 d\u1ef1 \u00e1n' : 'Bid on the project'))}
+                                </button>
+                                <button type="button" onClick={() => handleContact()} disabled={contacting || !canContact} className="inline-flex w-full items-center justify-center rounded-xl bg-ink px-5 py-3 text-base font-bold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60">
+                                  {contacting
+                                    ? (isVietnamese ? '\u0110ang m\u1edf li\u00ean h\u1ec7...' : 'Opening contact...')
+                                    : (isVietnamese ? 'Li\u00ean h\u1ec7' : 'Contact')}
+                                </button>
+                              </div>
                             </form>
 
                             {proposalStatus.message ? (
                               <p className={`mt-4 rounded-2xl px-4 py-3 text-sm ${proposalStatus.type === 'error' ? 'bg-rose-50 text-rose-700' : 'bg-emerald-50 text-emerald-700'}`}>
                                 {proposalStatus.message}
+                              </p>
+                            ) : null}
+                            {contactStatus.message ? (
+                              <p className={`mt-3 rounded-2xl px-4 py-3 text-sm ${contactStatus.type === 'error' ? 'bg-rose-50 text-rose-700' : 'bg-emerald-50 text-emerald-700'}`}>
+                                {contactStatus.message}
                               </p>
                             ) : null}
                           </div>
@@ -740,10 +752,10 @@ function JobDetails() {
                             <h3 className="text-xl font-bold text-ink">{isVietnamese ? 'L\u1ee3i \u00edch khi ch\u00e0o gi\u00e1' : 'Benefits of bidding'}</h3>
                             <div className="mt-5 space-y-4">
                               {[
-                                isVietnamese ? '??t ng?n s?ch v? th?i gian c?a b?n' : 'Set your budget and timeframe',
-                                isVietnamese ? 'Nh?n thanh to?n an to?n qua escrow' : 'Get paid securely through escrow',
-                                isVietnamese ? 'Tr?nh b?y c?ch b?n s? th?c hi?n' : 'Outline your proposal',
-                                isVietnamese ? 'Mi?n ph? g?i ch?o gi? cho c?ng vi?c' : "It's free to submit a bid on jobs",
+                                isVietnamese ? 'Đặt ngân sách và thời gian của bạn' : 'Set your budget and timeframe',
+                                isVietnamese ? 'Nhận thanh toán an toàn qua escrow' : 'Get paid securely through escrow',
+                                isVietnamese ? 'Trình bày cách bạn sẽ thực hiện' : 'Outline your proposal',
+                                isVietnamese ? 'Miễn phí gửi chào giá cho công việc' : "It's free to submit a bid on jobs",
                               ].map((item) => (
                                 <div key={item} className="flex items-center gap-3 text-sm font-medium text-slate-700">
                                   <CircleCheckBig className="h-5 w-5 text-pine" />
@@ -778,6 +790,7 @@ function JobDetails() {
                                 <p className="mt-1 truncate text-xs text-slate-500">{proposal.freelancerEmail || (isVietnamese ? 'Chưa có email' : 'No email')}</p>
                               </div>
                               <div className="flex shrink-0 flex-wrap gap-2">
+                                <button type="button" onClick={() => handleContact({ id: proposal.freelancerId })} disabled={contacting || !proposal.freelancerId} className="inline-flex items-center justify-center rounded-xl border border-pine/30 bg-pine/10 px-4 py-2 text-xs font-bold text-pine transition hover:bg-pine/15 disabled:cursor-not-allowed disabled:opacity-60">{contacting ? (isVietnamese ? 'Đang mở...' : 'Opening...') : (isVietnamese ? 'Liên hệ' : 'Contact')}</button>
                                 <button type="button" onClick={() => navigate(`/freelancer-profile/${proposal.freelancerId}`, { state: { profileSeed: { id: proposal.freelancerId, fullName: proposal.freelancerName || proposal.freelancerEmail || '', email: proposal.freelancerEmail || '', headline: isVietnamese ? 'Freelancer đang chào giá cho công việc này' : 'Freelancer bidding on this job' } } })} className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50">{isVietnamese ? 'Xem hồ sơ' : 'View profile'}</button>
                                 {selectedJob.status === 'open' ? (
                                   <button type="button" onClick={() => openProposalSelectionDraft(proposal)} disabled={selectingProposalId === proposal.id} className="inline-flex items-center justify-center rounded-xl bg-pine px-4 py-2 text-xs font-bold text-white transition hover:bg-pine/90 disabled:cursor-not-allowed disabled:opacity-60">

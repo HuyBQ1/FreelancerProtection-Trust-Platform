@@ -169,7 +169,7 @@ function buildDefaultContractState(job) {
 function computeContractMeta(milestones) {
   const safeMilestones = Array.isArray(milestones) ? milestones : [];
   const totalMilestones = safeMilestones.length;
-  const completedMilestones = safeMilestones.filter((milestone) => ['Approved', 'Completed'].includes(milestone.status)).length;
+  const completedMilestones = safeMilestones.filter((milestone) => milestone.status === 'Approved').length;
   const earnedAmount = safeMilestones.reduce((sum, milestone) => {
     if (milestone.status !== 'Approved') {
       return sum;
@@ -242,6 +242,14 @@ async function refundPendingPaymentsForJob(job) {
 }
 
 function resetAcceptedJob(job) {
+  const cancelledFreelancerId = job.assignedFreelancerId ? String(job.assignedFreelancerId) : '';
+  if (cancelledFreelancerId) {
+    job.proposals = (job.proposals || []).map((proposal) => (
+      String(proposal.freelancerId) === cancelledFreelancerId
+        ? { ...(proposal.toObject?.() || proposal), status: 'declined' }
+        : (proposal.toObject?.() || proposal)
+    ));
+  }
   job.status = 'open';
   job.assignedFreelancerId = null;
   job.assignedFreelancerName = '';
@@ -341,10 +349,9 @@ async function finalizeOnlineContractIfReady(job) {
   }
 
   if (job.onlineContract.status !== 'signed') {
-    await assertClientCanReservePendingPayments(job);
     job.onlineContract.status = 'signed';
-    job.acceptedAt = new Date();
-    job.contractState = buildDefaultContractState(job);
+    job.acceptedAt = job.acceptedAt || new Date();
+    job.contractState = job.contractState || buildDefaultContractState(job);
     await job.save();
   } else if (!job.contractState) {
     job.contractState = buildDefaultContractState(job);
@@ -381,8 +388,8 @@ async function assignJobToFreelancer(job, freelancerAccount) {
   job.assignedFreelancerId = freelancerAccount._id;
   job.assignedFreelancerName = freelancerAccount.fullName || freelancerAccount.email;
   job.assignedFreelancerRole = 'freelancer';
-  job.acceptedAt = null;
-  job.contractState = null;
+  job.acceptedAt = new Date();
+  job.contractState = buildDefaultContractState(job);
   job.onlineContract = buildOnlineContract(job, freelancerAccount);
   job.proposals = (job.proposals || []).map((proposal) => ({
     ...proposal.toObject?.() || proposal,
@@ -391,9 +398,10 @@ async function assignJobToFreelancer(job, freelancerAccount) {
 
   try {
     await job.save();
+    const pendingReservation = await ensurePendingPaymentsForJob(job, { strict: true });
     return {
       job,
-      pendingReservation: null,
+      pendingReservation,
       alreadyAccepted: false,
     };
   } catch (error) {
@@ -537,6 +545,14 @@ export async function createJob(req, res) {
   }
 
   const normalizedPayload = normalizeJobPayload(req.body);
+  const requiredBalance = parseBudgetNumber(normalizedPayload.budget);
+  const availableBalance = req.user.balance || 0;
+
+  if (availableBalance < requiredBalance) {
+    const error = new Error('Insufficient available balance to create this job');
+    error.statusCode = 400;
+    throw error;
+  }
 
   const job = await Job.create({
     ...normalizedPayload,
@@ -648,13 +664,28 @@ export async function getAssignedJobs(req, res) {
   }
 
   const jobs = await Job.find({
-    assignedFreelancerId: req.user._id,
-    status: { $in: ['assigned', 'closed'] },
+    $or: [
+      {
+        assignedFreelancerId: req.user._id,
+        status: { $in: ['assigned', 'closed'] },
+      },
+      {
+        status: 'open',
+        proposals: { $elemMatch: { freelancerId: req.user._id, status: 'declined' } },
+      },
+    ],
   }).sort({ acceptedAt: -1, createdAt: -1 });
 
   res.status(200).json({
     message: 'Accepted freelancer jobs fetched successfully',
-    jobs: jobs.map(serializeJob),
+    jobs: jobs.map((job) => {
+      const serialized = serializeJob(job);
+      const ownProposal = (job.proposals || []).find((proposal) => String(proposal.freelancerId) === String(req.user._id));
+      return {
+        ...serialized,
+        freelancerProposalStatus: ownProposal?.status || 'pending',
+      };
+    }),
   });
 }
 

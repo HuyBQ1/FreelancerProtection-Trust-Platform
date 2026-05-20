@@ -4,6 +4,8 @@ import Job from '../models/Job.js';
 import Review from '../models/Review.js';
 import Transaction from '../models/Transaction.js';
 import User from '../models/User.js';
+import { findAccountByIdAndRole } from '../services/accountService.js';
+import { createNotification } from '../services/notificationService.js';
 import { formatMoney, parseMoneyAmount } from '../utils/money.js';
 
 function requireAdmin(req) {
@@ -20,6 +22,61 @@ function formatCurrency(amount) {
 
 function parseMoney(value) {
   return parseMoneyAmount(value);
+}
+
+async function assertJobHasNoCompletedPayments(job) {
+  if (isJobCompleted(job)) {
+    const error = new Error('Cannot cancel contract because it has already been completed');
+    error.statusCode = 409;
+    throw error;
+  }
+}
+
+async function refundPendingPaymentsForJob(job) {
+  const pendingTransactions = await Transaction.find({
+    jobId: job._id,
+    status: 'pending',
+    type: 'release',
+  });
+
+  const refundAmount = pendingTransactions.reduce((sum, transaction) => sum + (transaction.amount || 0), 0);
+
+  if (refundAmount > 0) {
+    const { account: clientAccount, model: clientModel } = await findAccountByIdAndRole(job.clientId, 'client');
+
+    if (clientAccount && clientModel) {
+      await clientModel.findByIdAndUpdate(clientAccount._id, {
+        $set: {
+          balance: (clientAccount.balance || 0) + refundAmount,
+        },
+      });
+    }
+  }
+
+  if (pendingTransactions.length > 0) {
+    await Transaction.deleteMany({
+      _id: { $in: pendingTransactions.map((transaction) => transaction._id) },
+    });
+  }
+
+  return refundAmount;
+}
+
+function resetAcceptedJob(job) {
+  const cancelledFreelancerId = job.assignedFreelancerId ? String(job.assignedFreelancerId) : '';
+  if (cancelledFreelancerId) {
+    job.proposals = (job.proposals || []).map((proposal) => (
+      String(proposal.freelancerId) === cancelledFreelancerId
+        ? { ...(proposal.toObject?.() || proposal), status: 'declined' }
+        : (proposal.toObject?.() || proposal)
+    ));
+  }
+  job.status = 'open';
+  job.assignedFreelancerId = null;
+  job.assignedFreelancerName = '';
+  job.assignedFreelancerRole = '';
+  job.acceptedAt = null;
+  job.contractState = null;
 }
 
 function titleCase(value) {
@@ -486,5 +543,49 @@ export async function updateTransactionStatus(req, res) {
   res.status(200).json({
     message: 'Transaction status updated successfully',
     payment: serializeTransaction(transaction, accountById, jobById),
+  });
+}
+
+export async function cancelAdminContract(req, res) {
+  requireAdmin(req);
+
+  const { jobId } = req.params;
+  const job = await Job.findById(jobId);
+
+  if (!job) {
+    const error = new Error('Job not found');
+    error.statusCode = 404;
+    throw error;
+  }
+
+  if (job.status !== 'assigned') {
+    const error = new Error('Only active contracts can be cancelled');
+    error.statusCode = 409;
+    throw error;
+  }
+
+  await assertJobHasNoCompletedPayments(job);
+  const cancelledFreelancerId = job.assignedFreelancerId;
+  const refundedAmount = await refundPendingPaymentsForJob(job);
+  resetAcceptedJob(job);
+  await job.save();
+
+  if (cancelledFreelancerId) {
+    await createNotification({
+      recipient: { _id: cancelledFreelancerId, role: 'freelancer' },
+      actor: req.user,
+      type: 'job_cancelled',
+      title: 'Contract cancelled by admin',
+      body: `"${job.title}" was cancelled by admin and returned to the marketplace.`,
+      actionPage: 'contracts',
+      actionId: job._id.toString(),
+      metadata: { jobId: job._id.toString(), jobTitle: job.title, refundedAmount },
+    });
+  }
+
+  res.status(200).json({
+    message: 'Contract cancelled successfully',
+    refundedAmount,
+    jobId: job._id.toString(),
   });
 }

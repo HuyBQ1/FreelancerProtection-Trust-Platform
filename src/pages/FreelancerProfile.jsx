@@ -2,7 +2,6 @@
   ArrowLeft,
   BadgeCheck,
   CheckCircle2,
-  Clock3,
   MapPin,
   Shield,
   Star,
@@ -14,7 +13,7 @@ import Topbar from '../components/Topbar';
 import SectionCard from '../components/SectionCard';
 import { freelancerProfiles, sidebarItems } from '../data/appData';
 import { persistLanguage } from '../utils/language';
-import { formatMoney } from '../utils/money';
+import { formatMoney, parseMoneyAmount } from '../utils/money';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
 const TOKEN_KEY = 'fptp_token';
@@ -111,7 +110,34 @@ function normalizePublicFreelancerProfile(rawProfile, fallback = {}) {
     cvDataUrl: freelancerProfile.cvDataUrl || rawProfile?.cvDataUrl || fallback.cvDataUrl || '',
     cvFileName: freelancerProfile.cvFileName || rawProfile?.cvFileName || fallback.cvFileName || '',
     cvFileType: freelancerProfile.cvFileType || rawProfile?.cvFileType || fallback.cvFileType || '',
+    escrowSuccessRate: fallback.escrowSuccessRate || rawProfile?.escrowSuccessRate || '0%',
   };
+}
+
+function isSuccessfulJob(job) {
+  const contractState = job?.contractState || {};
+  if (job?.status === 'closed' || contractState.status === 'Completed') {
+    return true;
+  }
+
+  if (Number(contractState.progress || 0) >= 100) {
+    return true;
+  }
+
+  const milestones = Array.isArray(contractState.milestones) ? contractState.milestones : [];
+  return milestones.length > 0 && milestones.every((milestone) => milestone.status === 'Approved');
+}
+
+function isFinalizedJob(job) {
+  if (!job) return false;
+  const contractState = job.contractState || {};
+
+  if (job.status === 'closed') return true;
+  if (contractState.status === 'Completed') return true;
+  if (Number(contractState.progress || 0) >= 100) return true;
+
+  const milestones = Array.isArray(contractState.milestones) ? contractState.milestones : [];
+  return milestones.length > 0 && milestones.every((milestone) => milestone.status === 'Approved');
 }
 
 function FreelancerProfile() {
@@ -122,6 +148,9 @@ function FreelancerProfile() {
   const [reviewSummary, setReviewSummary] = useState({ averageRating: 0, totalReviews: 0 });
   const [profileReviews, setProfileReviews] = useState([]);
   const [completedJobs, setCompletedJobs] = useState([]);
+  const [assignedJobsCount, setAssignedJobsCount] = useState(0);
+  const [declinedProjectsCount, setDeclinedProjectsCount] = useState(0);
+  const [hasReceivedJob, setHasReceivedJob] = useState(false);
   const [publicProfile, setPublicProfile] = useState(null);
   const [profileLoading, setProfileLoading] = useState(false);
   const [availableBalance, setAvailableBalance] = useState(user?.balance || 0);
@@ -199,6 +228,14 @@ function FreelancerProfile() {
   const fallbackProfile = useMemo(() => freelancerProfiles.find((item) => `${item.id}` === `${profileId}`), [profileId]);
 
   const ownFreelancerProfile = user?.settings?.freelancerProfile || {};
+  const successRate = useMemo(() => {
+    const evaluatedProjects = assignedJobsCount + declinedProjectsCount;
+    if (evaluatedProjects <= 0) {
+      return '0%';
+    }
+
+    return `${Math.round((completedJobs.length / evaluatedProjects) * 100)}%`;
+  }, [assignedJobsCount, completedJobs.length, declinedProjectsCount]);
   const profile = publicProfile || {
     ...fallbackProfile,
     ...seedProfile,
@@ -215,7 +252,7 @@ function FreelancerProfile() {
     cvFileType: ownFreelancerProfile.cvFileType || '',
     completionRate: fallbackProfile?.completionRate || '—',
     responseTime: fallbackProfile?.responseTime || '—',
-    escrowSuccessRate: fallbackProfile?.escrowSuccessRate || '—',
+    escrowSuccessRate: successRate,
   };
 
   useEffect(() => {
@@ -232,11 +269,24 @@ function FreelancerProfile() {
               headers: { Authorization: `Bearer ${token}` },
             }).catch(() => null)
           : Promise.resolve(null);
-        const [profileResponse, ratingResponse, reviewsResponse, completedJobsResponse] = await Promise.all([
+        const assignedJobsRequest = token && isOwnProfile
+          ? fetch(`${API_BASE_URL}/jobs/assigned`, {
+              headers: { Authorization: `Bearer ${token}` },
+            }).catch(() => null)
+          : Promise.resolve(null);
+
+        const completedJobsRequest = token
+          ? fetch(`${API_BASE_URL}/jobs/completed/${resolvedProfileId}`, {
+              headers: { Authorization: `Bearer ${token}` },
+            }).catch(() => null)
+          : fetch(`${API_BASE_URL}/jobs/completed/${resolvedProfileId}`).catch(() => null);
+
+        const [profileResponse, ratingResponse, reviewsResponse, completedJobsResponse, assignedJobsResponse] = await Promise.all([
           profileRequest,
-          fetch(`${API_BASE_URL}/reviews/summary/${resolvedProfileId}`).catch(() => null),
+          fetch(`${API_BASE_URL}/reviews/rating/${resolvedProfileId}`).catch(() => null),
           fetch(`${API_BASE_URL}/reviews/user/${resolvedProfileId}`).catch(() => null),
-          fetch(`${API_BASE_URL}/jobs/completed/${resolvedProfileId}`).catch(() => null),
+          completedJobsRequest,
+          assignedJobsRequest,
         ]);
 
         if (!active) return;
@@ -262,9 +312,32 @@ function FreelancerProfile() {
           setProfileReviews(Array.isArray(reviewsData?.reviews) ? reviewsData.reviews : []);
         }
 
+        let completedJobsList = [];
         if (completedJobsResponse?.ok) {
           const completedJobsData = await completedJobsResponse.json().catch(() => ({}));
-          setCompletedJobs(Array.isArray(completedJobsData?.jobs) ? completedJobsData.jobs : []);
+          completedJobsList = Array.isArray(completedJobsData?.jobs) ? completedJobsData.jobs : [];
+          setCompletedJobs(completedJobsList);
+        }
+
+        if (assignedJobsResponse?.ok) {
+          const assignedJobsData = await assignedJobsResponse.json().catch(() => ({}));
+          const assignedJobs = Array.isArray(assignedJobsData?.jobs) ? assignedJobsData.jobs : [];
+          const declinedProjects = assignedJobs.filter((job) => `${job.freelancerProposalStatus || ''}`.toLowerCase() === 'declined');
+          const acceptedProjects = assignedJobs.filter((job) => `${job.freelancerProposalStatus || ''}`.toLowerCase() !== 'declined');
+          const finalizedJobs = assignedJobs.filter(isFinalizedJob);
+          const successfulJobs = finalizedJobs.filter(isSuccessfulJob);
+
+          setHasReceivedJob(acceptedProjects.length > 0);
+          setDeclinedProjectsCount(declinedProjects.length);
+          setAssignedJobsCount(finalizedJobs.length);
+          if (successfulJobs.length > 0) {
+            setCompletedJobs(successfulJobs);
+          } else {
+            setCompletedJobs([]);
+          }
+        } else if (completedJobsList.length > 0) {
+          setHasReceivedJob(true);
+          setAssignedJobsCount(completedJobsList.length);
         }
       } finally {
         if (active) setProfileLoading(false);
@@ -283,6 +356,7 @@ function FreelancerProfile() {
     summary: job.category || job.scopeSummary || job.description || '',
     budget: job.budget || '',
   }));
+  const totalEarnedValue = completedJobs.reduce((total, job) => total + parseMoneyAmount(job.contractState?.earned || job.budget || 0), 0);
 
   const dashboardLayout = (content) => (
     <div className="min-h-screen bg-slate-100/80">
@@ -346,20 +420,20 @@ function FreelancerProfile() {
 
             <div className="mt-8 grid gap-4 sm:grid-cols-2 2xl:grid-cols-4">
               <div className="rounded-3xl border border-white/10 bg-white/5 p-4">
-                <p className="text-sm text-white/60">{isVietnamese ? 'Mức giá' : 'Hourly rate'}</p>
-                <p className="mt-2 text-2xl font-bold">{profile.hourlyRate || '—'}</p>
+                <p className="text-sm text-white/60">{isVietnamese ? 'Tổng giá trị đã nhận' : 'Total earned value'}</p>
+                <p className="mt-2 text-2xl font-bold">{formatMoney(totalEarnedValue)}</p>
               </div>
               <div className="rounded-3xl border border-white/10 bg-white/5 p-4">
                 <p className="text-sm text-white/60">{isVietnamese ? 'Dự án hoàn thành' : 'Completed jobs'}</p>
                 <p className="mt-2 text-2xl font-bold">{completedWorkHistory.length}</p>
               </div>
               <div className="rounded-3xl border border-white/10 bg-white/5 p-4">
-                <p className="text-sm text-white/60">{isVietnamese ? 'Tỷ lệ hoàn thành' : 'Completion rate'}</p>
-                <p className="mt-2 text-2xl font-bold">{profile.completionRate || '—'}</p>
+                <p className="text-sm text-white/60">{isVietnamese ? 'Dự án bị từ chối' : 'Declined projects'}</p>
+                <p className="mt-2 text-2xl font-bold">{declinedProjectsCount}</p>
               </div>
               <div className="rounded-3xl border border-white/10 bg-white/5 p-4">
-                <p className="text-sm text-white/60">{isVietnamese ? 'Phản hồi' : 'Response time'}</p>
-                <p className="mt-2 text-2xl font-bold">{profile.responseTime || '—'}</p>
+                <p className="text-sm text-white/60">{isVietnamese ? 'Số lượt đánh giá' : 'Review count'}</p>
+                <p className="mt-2 text-2xl font-bold">{reviewSummary.totalReviews}</p>
               </div>
             </div>
           </div>
@@ -371,16 +445,19 @@ function FreelancerProfile() {
                 <p className="mt-2 inline-flex items-center gap-2 text-lg font-semibold text-ink"><MapPin className="h-5 w-5 text-pine" />{profile.location || 'Remote'}</p>
               </div>
               <div className="rounded-3xl border border-slate-200 bg-white p-5">
-                <p className="text-sm text-slate-500">{isVietnamese ? 'Khả dụng' : 'Availability'}</p>
-                <p className="mt-2 inline-flex items-center gap-2 text-lg font-semibold text-ink"><Clock3 className="h-5 w-5 text-pine" />{profile.availability || '—'}</p>
+                <p className="text-sm text-slate-500">{isVietnamese ? 'Trạng thái' : 'Status'}</p>
+                <p className="mt-2 inline-flex items-center gap-2 text-lg font-semibold text-ink">
+                  <CheckCircle2 className="h-5 w-5 text-pine" />
+                  {hasReceivedJob ? (isVietnamese ? 'Đã nhận job' : 'Job accepted') : (isVietnamese ? 'Chưa nhận job' : 'No accepted job')}
+                </p>
               </div>
               <div className="rounded-3xl border border-slate-200 bg-white p-5">
                 <p className="text-sm text-slate-500">{isVietnamese ? 'Đánh giá khách hàng' : 'Client rating'}</p>
                 <p className="mt-2 inline-flex items-center gap-2 text-lg font-semibold text-ink"><Star className="h-5 w-5 text-amber-500" />{reviewSummary.averageRating ? `${reviewSummary.averageRating.toFixed(1)} / 5` : '5.0 / 5'}</p>
               </div>
               <div className="rounded-3xl border border-slate-200 bg-white p-5">
-                <p className="text-sm text-slate-500">{isVietnamese ? 'Tỷ lệ escrow thành công' : 'Escrow success rate'}</p>
-                <p className="mt-2 inline-flex items-center gap-2 text-lg font-semibold text-ink"><Shield className="h-5 w-5 text-pine" />{profile.escrowSuccessRate || '—'}</p>
+                <p className="text-sm text-slate-500">{isVietnamese ? 'Tỉ lệ thành công' : 'Success rate'}</p>
+                <p className="mt-2 inline-flex items-center gap-2 text-lg font-semibold text-ink"><Shield className="h-5 w-5 text-pine" />{successRate}</p>
               </div>
             </div>
           </div>

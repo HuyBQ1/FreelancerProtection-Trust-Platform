@@ -248,6 +248,7 @@ function AdminDashboard() {
   const [selectedUserId, setSelectedUserId] = useState('');
   const [selectedDisputeId, setSelectedDisputeId] = useState('');
   const [selectedWithdrawal, setSelectedWithdrawal] = useState(null);
+  const [cancelingContractId, setCancelingContractId] = useState('');
   const language = user?.settings?.language || 'en';
   const dashboardLabels = getAdminLabels(language);
   const dashboardTitles = { ...getAdminTitles(language), kyc: 'Duyệt KYC' };
@@ -458,6 +459,33 @@ function AdminDashboard() {
       });
     } catch (actionError) {
       setError(actionError.message);
+    }
+  };
+
+  const cancelContract = async (item) => {
+    if (cancelingContractId) return;
+
+    try {
+      setError('');
+      setCancelingContractId(item.id);
+      await apiPatch(`/admin/jobs/${item.id}/cancel`, {});
+      setData((current) => ({
+        ...current,
+        contracts: current.contracts.map((contractItem) => (
+          contractItem.id === item.id
+            ? {
+              ...contractItem,
+              state: 'Rejected',
+              payoutRisk: 'Low',
+              progress: '0%',
+            }
+            : contractItem
+        )),
+      }));
+    } catch (actionError) {
+      setError(actionError.message);
+    } finally {
+      setCancelingContractId('');
     }
   };
 
@@ -854,6 +882,18 @@ function AdminDashboard() {
                 <p className="mt-2 text-sm text-slate-500">{item.owner}</p>
                 <p className="mt-3 text-sm text-slate-600">Số tiền bảo vệ {normalizeMoneyDisplay(item.amount)} · tiến độ hiện tại {item.progress}</p>
               </div>
+              {item.state === 'Active' ? (
+                <div className="flex justify-end">
+                  <button
+                    type="button"
+                    onClick={() => cancelContract(item)}
+                    disabled={cancelingContractId === item.id}
+                    className="rounded-xl border border-rose-300 px-4 py-2 text-sm font-semibold text-rose-700 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {cancelingContractId === item.id ? 'Đang hủy...' : 'Hủy hợp đồng'}
+                  </button>
+                </div>
+              ) : null}
             </div>
           </div>
         )) : <EmptyState title="Chưa có hợp đồng hoạt động" description="Khi freelancer nhận công việc, bản ghi hợp đồng sẽ xuất hiện tại đây." />}

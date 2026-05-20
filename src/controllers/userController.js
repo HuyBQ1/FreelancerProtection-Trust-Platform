@@ -235,15 +235,6 @@ export async function updateUserSettings(req, res) {
     if (typeof roleSettings.portfolioUrl === 'string') {
       updates['settings.freelancerProfile.portfolioUrl'] = roleSettings.portfolioUrl.trim();
     }
-    if (typeof roleSettings.cvFileName === 'string') {
-      updates['settings.freelancerProfile.cvFileName'] = roleSettings.cvFileName.trim();
-    }
-    if (typeof roleSettings.cvFileType === 'string') {
-      updates['settings.freelancerProfile.cvFileType'] = roleSettings.cvFileType.trim();
-    }
-    if (typeof roleSettings.cvDataUrl === 'string') {
-      updates['settings.freelancerProfile.cvDataUrl'] = roleSettings.cvDataUrl;
-    }
     if (Array.isArray(roleSettings.skills)) {
       updates['settings.freelancerProfile.skills'] = roleSettings.skills
         .map((skill) => `${skill}`.trim())

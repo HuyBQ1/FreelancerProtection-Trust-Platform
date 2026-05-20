@@ -3,7 +3,6 @@ import {
   BriefcaseBusiness,
   CheckCheck,
   ChevronDown,
-  CreditCard,
   FileCheck2,
   LogOut,
   MessageSquareText,
@@ -444,16 +443,6 @@ function Topbar({
               </div>
 
               <div className="mt-3 space-y-1">
-                <button
-                  onClick={() => {
-                    setMenuOpen(false);
-                    onOpenBankSettings?.();
-                  }}
-                  className="flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm font-medium text-slate-700 transition hover:bg-slate-50 hover:text-slate-900"
-                >
-                  <CreditCard className="h-4 w-4" />
-                  {language === 'vi' ? vi('\u0054\u0068\u0069\u1EBF\u0074\u0020\u006C\u1EAD\u0070\u0020\u0074\u00E0\u0069\u0020\u006B\u0068\u006F\u1EA3\u006E\u0020\u006E\u0067\u00E2\u006E\u0020\u0068\u00E0\u006E\u0067') : 'Bank account setup'}
-                </button>
                 {user?.role !== 'admin' ? (
                   <button
                     onClick={() => {

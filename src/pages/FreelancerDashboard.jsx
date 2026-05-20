@@ -192,12 +192,20 @@ function formatTransactionTime(value) {
   });
 }
 
-function localizeContractStatus(status, language) {
+function localizeMilestoneStatus(status, language) {
   if (language !== 'vi') return status;
   if (status === 'Approved') return 'Đã duyệt';
-  if (status === 'Completed') return 'Hoàn tất';
+  if (status === 'Completed') return 'Chờ duyệt';
   if (status === 'In Progress') return 'Đang thực hiện';
   if (status === 'Pending') return 'Chờ xử lý';
+  if (status === 'Active') return 'Đang hoạt động';
+  return status;
+}
+
+function localizeContractStatus(status, language) {
+  if (language !== 'vi') return status;
+  if (status === 'Declined') return 'Bị từ chối';
+  if (status === 'Completed') return 'Thành công';
   if (status === 'Active') return 'Đang hoạt động';
   return status;
 }
@@ -723,6 +731,10 @@ function FreelancerDashboard() {
   };
 
   const openSubmitModal = (contract, milestone, milestoneIndex) => {
+    if (contract?.status === 'Declined') {
+      setContractFeedback({ type: 'error', message: language === 'vi' ? 'Hợp đồng đã bị từ chối nên không thể nộp sản phẩm.' : 'This contract was declined, so submission is disabled.' });
+      return;
+    }
     setSubmitForm({ note: milestone?.submission?.note || '', file: null });
     setSubmitModal({ open: true, contract, milestone, milestoneIndex });
   };
@@ -877,16 +889,11 @@ function FreelancerDashboard() {
         return;
       }
 
-      setAcceptedJobs((currentJobs) => currentJobs.filter((job) => `${job.id}` !== `${contract.sourceJobId}`));
-      if (data.job) {
-        setJobList((currentJobs) => {
-          const withoutJob = currentJobs.filter((job) => `${job.id}` !== `${data.job.id}`);
-          return [data.job, ...withoutJob];
-        });
-      }
+      setAcceptedJobs((currentJobs) => currentJobs.map((job) => (`${job.id}` === `${contract.sourceJobId}`
+        ? { ...job, ...(data.job || {}), freelancerProposalStatus: 'declined' }
+        : job)));
       setPendingBalance((current) => Math.max(0, current - (data.refundedAmount || 0)));
-      setSelectedContractId('');
-      setContractFeedback({ type: 'success', message: 'Job cancelled. It is available again in Marketplace.' });
+      setContractFeedback({ type: 'success', message: 'Contract cancelled. The freelancer view now marks it as declined.' });
     } catch (error) {
       console.error('Failed to cancel job:', error);
       setContractFeedback({ type: 'error', message: 'Something went wrong while cancelling this job.' });
@@ -1225,13 +1232,15 @@ function FreelancerDashboard() {
     };
   }, [reviewModal.open]);
 
-  const activeContracts = contractList.filter((contract) => contract.status !== 'Completed');
+  const activeContracts = contractList;
   const completedContracts = contractList.filter((contract) => contract.status === 'Completed');
   const totalContractValue = contractList.reduce((total, contract) => total + parseMoneyAmount(contract.budget), 0);
   const earnedValue = contractList.reduce((total, contract) => total + parseMoneyAmount(contract.earned), 0);
   const completedMilestoneCount = contractList.reduce((total, contract) => total + (contract.completedMilestones || 0), 0);
   const totalMilestoneCount = contractList.reduce((total, contract) => total + (contract.totalMilestones || 0), 0);
+  const declinedContractCount = contractList.filter((contract) => contract.status === 'Declined').length;
   const nextMilestones = contractList
+    .filter((contract) => contract.status !== 'Declined')
     .flatMap((contract) => contract.milestones
       .filter((milestone) => !['Approved', 'Completed'].includes(milestone.status))
       .map((milestone) => ({ ...milestone, contractTitle: contract.title?.[language] || contract.title?.vi || contract.title?.en, contractId: contract.id })))
@@ -1239,7 +1248,6 @@ function FreelancerDashboard() {
   const recommendedJobs = jobList.filter((job) => `${job.status || 'open'}`.toLowerCase() === 'open').slice(0, 3);
   const transactionBars = recentTransactions.slice(0, 6).reverse();
   const maxTransactionAmount = Math.max(1, ...transactionBars.map((transaction) => transaction.amount || 0));
-  const completionRate = totalMilestoneCount > 0 ? Math.round((completedMilestoneCount / totalMilestoneCount) * 100) : 0;
   const filteredBankOptions = bankOptions
     .filter((bank) => {
       const keyword = withdrawForm.bankName.toLowerCase().trim();
@@ -1683,7 +1691,7 @@ function FreelancerDashboard() {
     const progressWidth = `${selectedContract.progress}%`;
     const milestoneMeta = {
       Approved: { wrapper: 'bg-indigo-100 text-indigo-600', badge: 'bg-indigo-100 text-indigo-700', icon: <HandCoins className="h-4 w-4" /> },
-      Completed: { wrapper: 'bg-emerald-100 text-emerald-600', badge: 'bg-emerald-100 text-emerald-700', icon: <CircleCheckBig className="h-4 w-4" /> },
+      Completed: { wrapper: 'bg-amber-100 text-amber-600', badge: 'bg-amber-100 text-amber-700', icon: <Clock3 className="h-4 w-4" /> },
       'In Progress': { wrapper: 'bg-amber-100 text-amber-600', badge: 'bg-amber-100 text-amber-700', icon: <Clock3 className="h-4 w-4" /> },
       Pending: { wrapper: 'bg-slate-100 text-slate-500', badge: 'bg-slate-100 text-slate-600', icon: <Hourglass className="h-4 w-4" /> },
     };
@@ -1695,7 +1703,7 @@ function FreelancerDashboard() {
       <div className="space-y-6">
         <div>
           <h2 className="text-3xl font-bold tracking-tight text-ink">{language === 'vi' ? 'Hợp đồng' : 'Contracts'}</h2>
-          <p className="mt-2 text-sm text-slate-500">{language === 'vi' ? `${contractList.length} hợp đồng` : `${contractList.length} contracts total`}</p>
+          <p className="mt-2 text-sm text-slate-500">{language === 'vi' ? `${activeContracts.length} hợp đồng` : `${activeContracts.length} contracts total`}</p>
         </div>
         {contractFeedback.message ? (
           <div className={`rounded-2xl px-4 py-3 text-sm ${contractFeedback.type === 'error' ? 'bg-rose-50 text-rose-700' : 'bg-emerald-50 text-emerald-700'}`}>
@@ -1704,14 +1712,14 @@ function FreelancerDashboard() {
         ) : null}
         <div className="grid gap-6 2xl:grid-cols-[380px_minmax(0,1fr)]">
           <div className="space-y-4">
-            {contractList.map((contract) => (
+            {activeContracts.map((contract) => (
               <button key={contract.id} onClick={() => setSelectedContractId(`${contract.id}`)} className={`w-full rounded-[26px] border bg-white p-5 text-left shadow-sm transition ${`${contract.id}` === `${selectedContract.id}` ? 'border-indigo-500 ring-2 ring-indigo-100' : 'border-slate-200 hover:border-slate-300'}`}>
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <p className="text-xl font-semibold text-ink">{contract.title?.[language] || contract.title?.vi || contract.title?.en}</p>
                     <p className="mt-1 text-sm text-slate-500">{contract.client}</p>
                   </div>
-                  <span className={`rounded-full px-3 py-1 text-xs font-semibold ${contract.status === 'Completed' ? 'bg-emerald-100 text-emerald-700' : 'bg-indigo-100 text-indigo-700'}`}>{localizeContractStatus(contract.status, language)}</span>
+                  <span className={`rounded-full px-3 py-1 text-xs font-semibold ${contract.status === 'Declined' ? 'bg-rose-100 text-rose-700' : contract.status === 'Completed' ? 'bg-emerald-100 text-emerald-700' : 'bg-indigo-100 text-indigo-700'}`}>{localizeContractStatus(contract.status, language)}</span>
                 </div>
                 <p className="mt-5 text-2xl font-bold text-ink">{contract.budget}</p>
               </button>
@@ -1792,12 +1800,13 @@ function FreelancerDashboard() {
                 {selectedContract.milestones.map((milestone, milestoneIndex) => {
                   const meta = milestoneMeta[milestone.status] || milestoneMeta.Pending;
                   const isApprove = milestone.action === 'Approve';
+                  const isDeclinedContract = selectedContract.status === 'Declined';
                   return (
                     <div key={milestone.title?.[language] || milestone.title?.vi || milestone.title?.en} className="flex flex-col gap-4 rounded-2xl border border-slate-200 px-4 py-5 md:flex-row md:items-center md:justify-between">
                       <div className="flex min-w-0 items-start gap-4">
                         <div className={`mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${meta.wrapper}`}>{meta.icon}</div>
                         <div className="min-w-0">
-                          <div className="flex flex-wrap items-center gap-3"><p className="truncate text-lg font-semibold text-ink">{milestone.title?.[language] || milestone.title?.vi || milestone.title?.en}</p><span className={`rounded-full px-3 py-1 text-xs font-semibold ${meta.badge}`}>{localizeContractStatus(milestone.status, language)}</span></div>
+                          <div className="flex flex-wrap items-center gap-3"><p className="truncate text-lg font-semibold text-ink">{milestone.title?.[language] || milestone.title?.vi || milestone.title?.en}</p><span className={`rounded-full px-3 py-1 text-xs font-semibold ${meta.badge}`}>{localizeMilestoneStatus(milestone.status, language)}</span></div>
                           <p className="mt-1 text-sm text-slate-500">{language === 'vi' ? `Hạn ${milestone.dueDate}` : `Due ${milestone.dueDate}`}<span className="mx-2 text-slate-300">|</span><span className="font-semibold text-ink">{milestone.amount}</span></p>
                           {milestone.reviewNote ? <p className="mt-2 text-sm text-slate-500">{milestone.reviewNote}</p> : null}
                         </div>
@@ -1822,6 +1831,10 @@ function FreelancerDashboard() {
                         {milestone.action ? (
                           <button
                             onClick={() => {
+                              if (isDeclinedContract) {
+                                setContractFeedback({ type: 'error', message: language === 'vi' ? 'Hợp đồng đã bị từ chối nên không thể nộp sản phẩm.' : 'This contract was declined, so submission is disabled.' });
+                                return;
+                              }
                               if (requiresSignature) {
                                 setContractFeedback({ type: 'error', message: language === 'vi' ? 'Bạn cần ký hợp đồng online trước khi nộp sản phẩm.' : 'Please sign the online contract before submitting work.' });
                                 return;
@@ -1830,10 +1843,11 @@ function FreelancerDashboard() {
                                 openSubmitModal(selectedContract, milestone, milestoneIndex);
                               }
                             }}
-                            className={`inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition ${requiresSignature ? 'bg-slate-200 text-slate-500' : isApprove ? 'cursor-default border border-emerald-500 text-emerald-600' : 'bg-indigo-600 text-white hover:bg-indigo-700'}`}
+                            className={`inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition ${isDeclinedContract || requiresSignature ? 'cursor-not-allowed bg-slate-200 text-slate-500' : isApprove ? 'cursor-default border border-emerald-500 text-emerald-600' : 'bg-indigo-600 text-white hover:bg-indigo-700'}`}
+                            disabled={isDeclinedContract}
                           >
                             {isApprove ? <Eye className="h-4 w-4" /> : <Upload className="h-4 w-4" />}
-                            {language === 'vi' ? (milestone.action === 'Submit Work' ? 'Nộp sản phẩm' : milestone.action === 'Approve' ? 'Đã duyệt' : milestone.action) : milestone.action}
+                            {language === 'vi' ? (milestone.action === 'Submit Work' ? 'Nộp sản phẩm' : milestone.action === 'Approve' ? 'Chờ duyệt' : milestone.action) : milestone.action}
                           </button>
                         ) : null}
                         <ChevronRight className="h-5 w-5 text-slate-400" />
@@ -2443,8 +2457,8 @@ function FreelancerDashboard() {
               </button>
               <button onClick={() => setActivePage('contracts')} className="rounded-2xl border border-white/10 bg-white/8 p-4 text-left transition hover:-translate-y-0.5 hover:bg-white/12">
                 <TrendingUp className="h-5 w-5 text-violet-200" />
-                <p className="mt-4 text-2xl font-bold">{completionRate}%</p>
-                <p className="mt-1 text-xs uppercase tracking-[0.16em] text-white/45">{language === 'vi' ? 'Tiến độ milestone' : 'Milestone progress'}</p>
+                <p className="mt-4 text-2xl font-bold">{declinedContractCount}</p>
+                <p className="mt-1 text-xs uppercase tracking-[0.16em] text-white/45">{language === 'vi' ? 'Dự án bị từ chối' : 'Declined projects'}</p>
               </button>
               <button onClick={() => setActivePage('escrow')} className="rounded-2xl border border-white/10 bg-white/8 p-4 text-left transition hover:-translate-y-0.5 hover:bg-white/12">
                 <WalletCards className="h-5 w-5 text-amber-200" />
@@ -2514,19 +2528,15 @@ function FreelancerDashboard() {
 
           <div className="mt-6 space-y-4">
             {activeContracts.slice(0, 4).map((contract) => (
-              <button
+              <div
                 key={contract.id}
-                onClick={() => {
-                  setSelectedContractId(`${contract.id}`);
-                  setActivePage('contracts');
-                }}
                 className="group w-full rounded-[26px] border border-slate-200 bg-white p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-emerald-200 hover:shadow-[0_20px_50px_rgba(15,23,42,0.08)]"
               >
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
                       <h3 className="truncate text-lg font-bold text-ink">{contract.title?.[language] || contract.title?.vi || contract.title?.en}</h3>
-                      <span className="rounded-full bg-indigo-50 px-3 py-1 text-xs font-semibold text-indigo-700">{localizeContractStatus(contract.status, language)}</span>
+                      <span className={`rounded-full px-3 py-1 text-xs font-semibold ${contract.status === 'Declined' ? 'bg-rose-100 text-rose-700' : 'bg-indigo-50 text-indigo-700'}`}>{localizeContractStatus(contract.status, language)}</span>
                     </div>
                     <p className="mt-1 text-sm text-slate-500">{contract.client}</p>
                   </div>
@@ -2544,7 +2554,28 @@ function FreelancerDashboard() {
                 <div className="mt-5 h-2 overflow-hidden rounded-full bg-slate-100">
                   <div className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-indigo-500 transition-all group-hover:from-emerald-400" style={{ width: `${contract.progress}%` }} />
                 </div>
-              </button>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedContractId(`${contract.id}`);
+                      setActivePage('contracts');
+                    }}
+                    className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                  >
+                    {language === 'vi' ? 'Xem hợp đồng' : 'View contract'}
+                  </button>
+                  {contract.status !== 'Declined' ? (
+                    <button
+                      type="button"
+                      onClick={() => cancelAcceptedJob(contract)}
+                      className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-2 text-sm font-semibold text-rose-700 transition hover:border-rose-300 hover:bg-rose-100"
+                    >
+                      {language === 'vi' ? 'Hủy hợp đồng' : 'Cancel contract'}
+                    </button>
+                  ) : null}
+                </div>
+              </div>
             ))}
 
             {activeContracts.length === 0 ? (
@@ -2627,7 +2658,7 @@ function FreelancerDashboard() {
                     <p className="font-semibold text-ink">{milestone.title?.[language] || milestone.title?.vi || milestone.title?.en}</p>
                     <p className="mt-1 text-sm text-slate-500">{milestone.contractTitle}</p>
                   </div>
-                  <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700">{localizeContractStatus(milestone.status, language)}</span>
+                  <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700">{localizeMilestoneStatus(milestone.status, language)}</span>
                 </div>
                 <div className="mt-4 flex items-center justify-between text-sm">
                   <span className="text-slate-500">{language === 'vi' ? `Hạn ${milestone.dueDate}` : `Due ${milestone.dueDate}`}</span>

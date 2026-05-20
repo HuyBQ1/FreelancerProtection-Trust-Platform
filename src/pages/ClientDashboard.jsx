@@ -251,11 +251,18 @@ function formatTransactionTime(value, language = 'en') {
 function localizeContractStatus(status, language) {
   if (language !== 'vi') return status;
   if (status === 'Approved') return 'Đã duyệt';
-  if (status === 'Completed') return 'Hoàn tất';
+  if (status === 'Completed') return 'Thành công';
   if (status === 'In Progress') return 'Đang thực hiện';
   if (status === 'Pending') return 'Chờ xử lý';
   if (status === 'Active') return 'Đang hoạt động';
+  if (status === 'Declined') return 'Bị từ chối';
   return status;
+}
+
+function contractStatusTone(status) {
+  if (status === 'Declined') return 'bg-rose-100 text-rose-700';
+  if (status === 'Completed') return 'bg-emerald-100 text-emerald-700';
+  return 'bg-indigo-100 text-indigo-700';
 }
 
 function ClientDashboard() {
@@ -517,8 +524,33 @@ function ClientDashboard() {
   };
 
   const acceptedContracts = postedJobs
-    .filter((job) => job.status === 'assigned')
-    .map(createContractFromAcceptedJob);
+    .filter((job) => {
+      if (job.status === 'assigned') {
+        return true;
+      }
+
+      if (job.status !== 'open') {
+        return false;
+      }
+
+      const hasDeclinedAcceptedContract = Array.isArray(job.proposals)
+        && job.proposals.some((proposal) => `${proposal.status || ''}`.toLowerCase() === 'declined')
+        && (job.onlineContract || job.acceptedAt);
+
+      return hasDeclinedAcceptedContract;
+    })
+    .map((job) => {
+      const declinedProposal = Array.isArray(job.proposals)
+        ? job.proposals.find((proposal) => `${proposal.status || ''}`.toLowerCase() === 'declined')
+        : null;
+
+      return createContractFromAcceptedJob({
+        ...job,
+        freelancerProposalStatus: declinedProposal ? 'declined' : job.freelancerProposalStatus,
+        assignedFreelancerId: job.assignedFreelancerId || declinedProposal?.freelancerId || '',
+        assignedFreelancerName: job.assignedFreelancerName || declinedProposal?.freelancerName || '',
+      });
+    });
   const contractList = sortContractsByWorkState(acceptedContracts.map((contract, index) => normalizeContractForView(contract, index)));
   const selectedClientContract = contractList.find((item) => `${item.id}` === `${selectedContractId}`) ?? contractList[0];
   const selectedContractLastApprovedMilestoneIndex = selectedClientContract
@@ -545,6 +577,8 @@ function ClientDashboard() {
     job.status !== 'closed'
     && job.contractState?.status !== 'Completed'
   ));
+  const postedJobsCount = postedJobs.length;
+  const activeContractsCount = contractList.filter((contract) => contract.status === 'Active').length;
   const filteredBankOptions = bankOptions.filter((bank) => {
     const keyword = withdrawForm.bankName.toLowerCase().trim();
     if (!keyword) return true;
@@ -1499,7 +1533,12 @@ function ClientDashboard() {
           <div className="space-y-4">
             {contractList.map((contract) => (
               <button key={contract.id} onClick={() => setSelectedContractId(`${contract.id}`)} className={`w-full rounded-[26px] border bg-white p-5 text-left shadow-sm transition ${`${contract.id}` === `${selectedClientContract.id}` ? 'border-indigo-500 ring-2 ring-indigo-100' : 'border-slate-200 hover:border-slate-300'}`}>
-                <p className="text-xl font-semibold text-ink">{contract.title?.[language] || contract.title?.vi || contract.title?.en}</p>
+                <div className="flex items-start justify-between gap-3">
+                  <p className="text-xl font-semibold text-ink">{contract.title?.[language] || contract.title?.vi || contract.title?.en}</p>
+                  <span className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold ${contractStatusTone(contract.status)}`}>
+                    {localizeContractStatus(contract.status, language)}
+                  </span>
+                </div>
                 <p className="mt-1 text-sm text-slate-500">{contract.client}</p>
                 <p className="mt-5 text-2xl font-bold text-ink">{contract.budget}</p>
               </button>
@@ -2462,8 +2501,8 @@ function ClientDashboard() {
       </SectionCard>
       <section className="grid gap-5 md:grid-cols-3">
         {[
-          { label: language === 'vi' ? 'Công việc đang mở' : 'Open jobs', value: '12', hint: language === 'vi' ? '4 đề xuất mới hôm nay' : '4 new proposals today', icon: BriefcaseBusiness, accent: 'bg-pine/10 text-pine' },
-          { label: language === 'vi' ? 'Phê duyệt đang chờ' : 'Pending approvals', value: '3', hint: language === 'vi' ? 'Các milestone đang chờ xem xét' : 'Milestones waiting for review', icon: ClipboardCheck, accent: 'bg-coral/10 text-coral' },
+          { label: language === 'vi' ? 'Công việc đã đăng' : 'Posted jobs', value: `${postedJobsCount}`, hint: language === 'vi' ? 'Tổng số công việc đã tạo trong hệ thống' : 'Total jobs created in the system', icon: BriefcaseBusiness, accent: 'bg-pine/10 text-pine' },
+          { label: language === 'vi' ? 'Hợp đồng hoạt động' : 'Active contracts', value: `${activeContractsCount}`, hint: language === 'vi' ? 'Số hợp đồng đang được thực hiện' : 'Contracts currently in progress', icon: ClipboardCheck, accent: 'bg-coral/10 text-coral' },
           { label: language === 'vi' ? 'Số dư khả dụng' : 'Available balance', value: formatMoney(availableBalance), hint: language === 'vi' ? 'Số dư dùng chung cho các thanh toán trên nền tảng' : 'Shared balance used for platform payments', icon: CircleDollarSign, accent: 'bg-gold/10 text-gold' },
         ].map((stat) => <StatCard key={stat.label} {...stat} />)}
       </section>
